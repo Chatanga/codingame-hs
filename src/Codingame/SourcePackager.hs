@@ -105,9 +105,11 @@ parseModuleSource parseMode moduleSourceMap sourceFile source = do
         (Module srcLoc (ModuleName moduleName) pragmas warningText exportSpec importDecls decls) =
             moduleCode
 
+        srcDir = getSrcDir sourceFile moduleName
+
         dependencies :: [(ImportDecl, FilePath)]
         dependencies =
-            fmap (id &&& (locateImport sourceFile . getModuleName . importModule)) importDecls
+            fmap (id &&& (locateImport srcDir . getModuleName . importModule)) importDecls
 
         -- Reserve slot for the module with an undefined value to avoid recursion.
         moduleSourceMap' = Map.insert sourceFile (undefined, decls) moduleSourceMap
@@ -123,13 +125,18 @@ parseModuleSource parseMode moduleSourceMap sourceFile source = do
 
     return moduleSourceMap'''
 
+getSrcDir :: FilePath -> String -> FilePath
+getSrcDir sourceFile moduleName = srcDir where
+    parents = moduleName
+        & fmap Text.unpack . Text.splitOn (Text.pack ".") . Text.pack
+    srcDir = iterate takeDirectory sourceFile !! length parents
+
 locateImport :: FilePath -> String -> FilePath
-locateImport sourceFile importedModuleName = importedSourceFile where
-    directory = takeDirectory sourceFile
+locateImport srcDir importedModuleName = importedSourceFile where
     (parents, child) = importedModuleName
         & fmap Text.unpack . Text.splitOn (Text.pack ".") . Text.pack
         & (init &&& last)
-    importedSourceFile = (foldl (</>) directory parents) </> child <.> ".hs"
+    importedSourceFile = (foldl (</>) srcDir parents) </> child <.> ".hs"
 
 mergeImportDecls :: [[ImportDecl]] -> [ImportDecl]
 mergeImportDecls decls =
