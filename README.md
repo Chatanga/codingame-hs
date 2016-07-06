@@ -8,8 +8,8 @@ Usage
 
 For now, this library includes two modules:
 
-*	SourcePackager to create monolithic sources from multiples files.
-*	WebServices to gain access to the Codingame web services API from your code.
+-	**SourcePackager** to create monolithic sources from multiples files.
+-	**WebServices** to gain access to the Codingame web services API from your code.
 
 A typical usage is to combine these two module to submit a complex bot spanning many modules
 to the Codingame IDE (or directly to the arena) to test it against other players into a test session:
