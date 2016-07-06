@@ -1,0 +1,29 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>Codingame.SourcePackager</title><link href="ocean.css" rel="stylesheet" type="text/css" title="Ocean" /><script src="haddock-util.js" type="text/javascript"></script><script type="text/javascript">//<![CDATA[
+window.onload = function () {pageLoad();setSynopsis("mini_Codingame-SourcePackager.html");};
+//]]>
+</script></head><body><div id="package-header"><ul class="links" id="page-menu"><li><a href="index.html">Contents</a></li><li><a href="doc-index.html">Index</a></li></ul><p class="caption">codingame-hs-0.0.1: Simple library to play with the Codingame site.</p></div><div id="content"><div id="module-header"><table class="info"><tr><th>Safe Haskell</th><td>None</td></tr></table><p class="caption">Codingame.SourcePackager</p></div><div id="table-of-contents"><p class="caption">Contents</p><ul><li><a href="#g:1">Unit testing
+</a></li></ul></div><div id="description"><p class="caption">Description</p><div class="doc"><p>A small module to create monolithic sources from multiples files.
+</p></div></div><div id="synopsis"><p id="control.syn" class="caption expander" onclick="toggleSection('syn')">Synopsis</p><ul id="section.syn" class="hide" onclick="toggleSection('syn')"><li class="src short"><a href="#v:createMonolithicSource">createMonolithicSource</a> :: FilePath -&gt; IO String</li><li class="src short"><a href="#v:createMonolithicSourceWithMode">createMonolithicSourceWithMode</a> :: ParseMode -&gt; FilePath -&gt; IO String</li><li class="src short"><a href="#v:sourcePackagerTestGroup">sourcePackagerTestGroup</a> :: Test</li></ul></div><div id="interface"><h1>Documentation</h1><div class="top"><p class="src"><a name="v:createMonolithicSource" class="def">createMonolithicSource</a> :: FilePath -&gt; IO String</p><div class="doc"><p>Create a monolithic source by concatening a Haskell source file and all its local dependencies.
+The result is not just a string concatenation and source files are actually parsed and processed
+such as the returned source forms a valid Haskell content. Only the local content is incorported in
+the resulting source, whereas the external modules are simply kept as imported modules (eg. the
+source code of &quot;System.IO&quot; won&#8217;t be included. An internal module is a module whose source file
+can be found in the same hierachical directory as the initial file provided. Per instance, when
+creation a monolithic source from &quot;src/Machin.hs&quot;, the source of an imported module named
+&quot;Truc.Bidule&quot; will be searched in &quot;src/Truc&quot;. Last but not least, any function named
+&quot;runMain&quot; will be renamed into &quot;main&quot;. It allows you to generate a valid program by only
+selecting a subset of your code base.
+</p></div></div><div class="top"><p class="src"><a name="v:createMonolithicSourceWithMode" class="def">createMonolithicSourceWithMode</a> :: ParseMode -&gt; FilePath -&gt; IO String</p><div class="doc"><p>Create a monolithic source by concatening a Haskell source file and all its local dependencies.
+This function works the same way as createMonolithicSource but offer a way to customize the parse
+mode in order to deal with some parsing limitations. Indeed files are only parsed, not compiled and
+some things are beyond the parser capability, such as operator fixities. If you are defining you own
+operators in a file and use then into another, you need to declare them by overriding the parse
+mode:
+</p><pre>
+let importedFixities = infixl_ 8 [&quot;|&gt;&quot;]
+    fixities' = importedFixities ++ fromMaybe [] (fixities defaultParseMode)
+    parseMode = defaultParseMode{ fixities = Just fixities' }
+
+source &lt;- createMonolithicSourceWithMode parseMode &quot;src/Golgoth.hs&quot;
+</pre></div></div><h1 id="g:1">Unit testing
+</h1><div class="top"><p class="src"><a name="v:sourcePackagerTestGroup" class="def">sourcePackagerTestGroup</a> :: Test</p></div></div></div><div id="footer"><p>Produced by <a href="http://www.haskell.org/haddock/">Haddock</a> version 2.13.2</p></div></body></html>
