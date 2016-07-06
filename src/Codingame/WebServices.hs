@@ -7,7 +7,7 @@ against another player into a test session:
 @
 credentials <- readCredentials \"credentials.json\"
 let source = \"main = putStrLn \\\"42\\\"\"
-result <- play credentials \"Coders Strike Back\" source [UploadedCode, TrainingAi] Nothing
+result <- play credentials \"Coders Strike Back\" source [IdeCode, DefaultAi] Nothing
 @
 
 -}
@@ -413,12 +413,12 @@ data Multi = Multi
 instance ToJSON Multi where
     toJSON (Multi ai go) = object ["agentsIds" .= ai, "gameOptions" .= go]
 
-data AgentId = UploadedCode | TrainingAi | UserId Int deriving Show
+data AgentId = IdeCode | DefaultAi | AgentId Int deriving Show
 
 instance ToJSON AgentId where
-    toJSON UploadedCode = Number (-1)
-    toJSON TrainingAi = Number (-2)
-    toJSON (UserId i) = toJSON i
+    toJSON IdeCode = Number (-1)
+    toJSON DefaultAi = Number (-2)
+    toJSON (AgentId i) = toJSON i
 
 ----------------------------------------------------------------------------------------------------
 
@@ -439,7 +439,7 @@ submit credentials challengeTitle source = runSession $ dumpError $ do
     testSessionHandle <- testSession_handle <$> wsGenerateSessionFromPuzzleIdV2 (Just userId) gameId
     result <- wsSubmit testSessionHandle submitData
     liftIO $ do
-        putStrLn $ "Result (no idea what it is...): " ++ show result
+        putStrLn $ "Agent ID: " ++ show result
 
 {- | Upload a Haskell source into the IDE and play a single game between two agents. Any of these
 agent could use the uploaded source, but it is not mandatory. However, even if not used, a source
@@ -542,14 +542,14 @@ wsFindByGameId replayId = handleResult $ post'
 
 wsFindInformationByIdAndSaveGame
     :: Int -- ^ Replay ID.
-    -> Int -- ^ Used ID.
+    -> Int -- ^ User ID.
     -> Session GameResult
 wsFindInformationByIdAndSaveGame replayId userId = handleResult $ post'
     "https://www.codingame.com/services/gameResultRemoteService/findInformationByIdAndSaveGame"
     [toJSON replayId, toJSON userId]
 
 wsGenerateSessionFromPuzzleIdV2
-    :: Maybe Int -- ^ Used ID.
+    :: Maybe Int -- ^ User ID.
     -> Int -- ^ Game ID.
     -> Session TestSession
 wsGenerateSessionFromPuzzleIdV2 userId gameId = handleResult $ post'
@@ -639,8 +639,8 @@ post url body = do
                 , ("Cookie", encodeCookies cookies)
                 ]
             }
-    let tenSeconds = 10000000
-    response <- liftIO $ httpLbs request{responseTimeout = Just tenSeconds} manager
+    let thirtySeconds = 30000000
+    response <- liftIO $ httpLbs request{responseTimeout = Just thirtySeconds} manager
     let cookies' = removeOlders (decodeSetCookies response ++ cookies)
         removeOlders = List.nubBy (\x y -> EQ == comparing fst x y)
     put (SessionState cookies')
@@ -676,4 +676,4 @@ parseResponse response =
 testPlay = do
     let source = "main = putStrLn \"42\""
     credentials <- readCredentials "credentials.json"
-    play credentials "Coders Strike Back" source [UploadedCode, TrainingAi] Nothing
+    play credentials "Coders Strike Back" source [IdeCode, DefaultAi] Nothing

@@ -17,7 +17,7 @@ to the Codingame IDE (or directly to the arena) to test it against other players
 		main = do
 			source <- createMonolithicSource "src/Golgoth.hs"
 			credentials <- readCredentials "credentials.json"
-			play credentials "Coders Strike Back" source [UploadedCode, TrainingAi] Nothing
+			play credentials "Coders Strike Back" source [IdeCode, DefaultAi] Nothing
 
 Install
 -------
