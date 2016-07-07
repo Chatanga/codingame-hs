@@ -430,16 +430,18 @@ submit
     :: Credentials -- ^ A user credentials.
     -> String -- ^ The challenge title.
     -> String -- ^ The source to submit.
-    -> IO (Either SessionError ()) -- ^ The error or nothing on success.
+    -> IO (Either SessionError Int) -- ^ The error or the submitted agent ID on success.
 submit credentials challengeTitle source = runSession $ dumpError $ do
     (userId, gameId) <- connectToMultiGame credentials challengeTitle
 
     let submitData = Submit source "Haskell"
 
     testSessionHandle <- testSession_handle <$> wsGenerateSessionFromPuzzleIdV2 (Just userId) gameId
-    result <- wsSubmit testSessionHandle submitData
+    agentId <- wsSubmit testSessionHandle submitData
     liftIO $ do
-        putStrLn $ "Agent ID: " ++ show result
+        putStrLn $ "Agent ID: " ++ show agentId
+
+    return agentId
 
 {- | Upload a Haskell source into the IDE and play a single game between two agents. Any of these
 agent could use the uploaded source, but it is not mandatory. However, even if not used, a source

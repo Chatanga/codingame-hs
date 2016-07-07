@@ -35,26 +35,31 @@ import Codingame.Misc
 
 type ModuleSourceMap = Map.Map FilePath ([ImportDecl], [Decl])
 
-{- | Create a monolithic source by concatening a Haskell source file and all its local dependencies.
+{- | Create a monolithic source by concatenating a Haskell source file and all its local
+dependencies.
+
 The result is not just a string concatenation and source files are actually parsed and processed
-such as the returned source forms a valid Haskell content. Only the local content is incorported in
+such as the returned source forms a valid Haskell content. Only the local content is incorporated in
 the resulting source, whereas the external modules are simply kept as imported modules (eg. the
-source code of \"System.IO\" won’t be included. An internal module is a module whose source file
+source code of \"System.IO\" won’t be included). An internal module is a module whose source file
 can be found in the same hierachical directory as the initial file provided. Per instance, when
-creation a monolithic source from \"src\/Machin.hs\", the source of an imported module named
-\"Truc.Bidule\" will be searched in \"src\/Truc\". Last but not least, any function named
-\"runMain\" will be renamed into \"main\". It allows you to generate a valid program by only
-selecting a subset of your code base.
+creating a monolithic source from \"src\/Machin.hs\", the source of an imported module named
+\"Truc.Bidule\" will be searched in \"src\/Truc\".
+
+Lastly, any function named \"runMain\" will be renamed \"main\". It allows you to generate a new
+valid program by only selecting a subset of your code base which uses another main function.
 -}
 createMonolithicSource :: FilePath -> IO String
 createMonolithicSource = createMonolithicSourceWithMode defaultParseMode
 
-{- | Create a monolithic source by concatening a Haskell source file and all its local dependencies.
+{- | Create a monolithic source by concatenating a Haskell source file and all its local
+dependencies.
+
 This function works the same way as createMonolithicSource but offer a way to customize the parse
-mode in order to deal with some parsing limitations. Indeed files are only parsed, not compiled and
-some things are beyond the parser capability, such as operator fixities. If you are defining you own
-operators in a file and use then into another, you need to declare them by overriding the parse
-mode:
+mode in order to deal with some parsing limitations. Indeed files are only parsed separately, not
+compiled as a whole and some things are beyond the parser capability, such as operator fixities.
+If you are defining you own operators in a file and use then into another, you need to declare them
+by overriding the parse mode:
 
 @
 let importedFixities = infixl_ 8 [\"|>\"]
@@ -111,7 +116,7 @@ parseModuleSource parseMode moduleSourceMap sourceFile source = do
         dependencies =
             fmap (id &&& (locateImport srcDir . getModuleName . importModule)) importDecls
 
-        -- Reserve slot for the module with an undefined value to avoid recursion.
+        -- Reserve a slot for the module with an undefined value to avoid recursion.
         moduleSourceMap' = Map.insert sourceFile (undefined, decls) moduleSourceMap
 
     moduleSourceMap'' <-
