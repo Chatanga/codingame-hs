@@ -14,13 +14,15 @@ For now, this library includes two modules:
 A typical usage is to combine these two modules to submit a complex bot spanning many modules to the
 Codingame IDE (or directly to the arena) to test it against other players into a test session:
 
-        main = do
-            source <- createMonolithicSource "src/Golgoth.hs"
-            credentials <- readCredentials "credentials.json"
-            play credentials "Coders Strike Back" source [IdeCode, DefaultAi] Nothing
+```haskell
+main = do
+        source <- createMonolithicSource "src/Golgoth.hs"
+        credentials <- readCredentials "credentials.json"
+        play credentials "Coders Strike Back" source [IdeCode, DefaultAi] Nothing
+```
 
 Install
 -------
 
-A <code>cabal install</code> will do the trick or just <code>cabal haddock</code> if you are only
+A `cabal install` will do the trick or just `cabal haddock` if you are only
 interrested in checking out the documentation.
