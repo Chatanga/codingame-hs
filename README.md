@@ -1,7 +1,7 @@
 codingame-hs
 ============
 
-A simple library to play with the Codingame site.
+A simple library to play with the [Codingame](https://www.codingame.com) site.
 
 Usage
 -----
