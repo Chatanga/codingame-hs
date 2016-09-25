@@ -18,7 +18,10 @@ Codingame IDE (or directly to the arena) to test it against other players into a
 main = do
         source <- createMonolithicSource "src/Golgoth.hs"
         credentials <- readCredentials "credentials.json"
+        -- To play a specific past challenge (using its name, not its ID).
         play credentials "Coders Strike Back" source [IdeCode, DefaultAi] Nothing
+        -- To play any ongoing challenge (if any).
+        playLatest source [IdeCode, DefaultAi] Nothing
 ```
 
 Install

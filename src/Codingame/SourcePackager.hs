@@ -73,7 +73,7 @@ createMonolithicSourceWithMode :: ParseMode -> FilePath -> IO String
 createMonolithicSourceWithMode parseMode sourceFile = do
     moduleSourceMap <- processModule parseMode Map.empty sourceFile
 
-    let contributions = fmap snd (Map.toList moduleSourceMap)
+    let contributions = Map.elems moduleSourceMap :: [([ImportDecl], [Decl])]
         srcLoc = error "no srcLoc"
         pragmas = []
         warningText = Nothing
@@ -153,7 +153,8 @@ patchRunMain :: Decl -> Decl
 patchRunMain decl = case decl of
     (TypeSig srcLoc names t) -> (TypeSig srcLoc (fmap patchName names) t)
     (FunBind matchs) -> (FunBind (fmap patchMatch matchs))
-    (PatBind srcLoc pat mType rhs binds) -> (PatBind srcLoc (patchPat pat) mType rhs binds)
+    -- (PatBind srcLoc pat mType rhs binds) -> (PatBind srcLoc (patchPat pat) mType rhs binds)
+    (PatBind srcLoc pat rhs binds) -> (PatBind srcLoc (patchPat pat) rhs binds)
     _ -> decl
     where
         patchName (Ident "runMain") = Ident "main"

@@ -15,6 +15,7 @@ module Codingame.WebServices
     ( -- * Complex requests
       submit
     , play
+    , playLatest
     , readCredentials
       -- * Elementary requests
     , wsLoginSiteV2
@@ -51,6 +52,7 @@ import Data.Aeson -- Need a higher version to generate FromJSON instances.
 import Data.Attoparsec.ByteString (parseOnly)
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.ByteString as BS
+import Data.Char
 import qualified Data.List as List
 import Data.Maybe
 import Data.Ord
@@ -67,7 +69,7 @@ import Codingame.Misc
 
 data ServiceError = ServiceError
     { error_id :: Int
-    , error_type :: String
+    , error_type :: Maybe String
     , error_message :: String
     } deriving Show
 
@@ -75,7 +77,7 @@ instance FromJSON ServiceError where
     parseJSON (Object v) =
         ServiceError <$>
         (v .: "id") <*>
-        (v .: "type") <*>
+        (v .:? "type") <*>
         (v .: "message")
 
 ----------------------------------------------------------------------------------------------------
@@ -206,7 +208,7 @@ instance FromJSON (ServiceResult [GamePuzzleProgress]) where
 data GamePuzzleProgress = GamePuzzleProgress
     { progress_id :: Int
     , progress_level :: String
-    , progress_rank :: Int
+    , progress_rank :: Maybe Int
     , progress_thumbnailBinaryId :: Maybe Int
     , progress_previewBinaryId :: Maybe Int
     , progress_title :: String
@@ -227,7 +229,7 @@ instance FromJSON GamePuzzleProgress where
         GamePuzzleProgress <$>
         (v .: "id") <*>
         (v .: "level") <*>
-        (v .: "rank") <*>
+        (v .:? "rank") <*>
         (v .:? "thumbnailBinaryId") <*>
         (v .:? "previewBinaryId") <*>
         (v .: "title") <*>
@@ -256,8 +258,8 @@ data Challenge = Challenge
     , challenge_cover1Id :: Maybe Int
     , challenge_logoId :: Int
     , challenge_descriptionJson :: Maybe String
-    , challenge_endApplicationsDate :: Int
-    , challenge_applicationsClossed :: Bool
+    , challenge_endApplicationsDate :: Maybe Int
+    , challenge_applicationsClosed :: Maybe Bool
     } deriving Show
 
 instance FromJSON Challenge where
@@ -269,8 +271,42 @@ instance FromJSON Challenge where
         (v .:? "coverId") <*>
         (v .: "logoId") <*>
         (v .:? "descriptionJson") <*>
-        (v .: "endApplicationsDate") <*>
-        (v .: "applicationsClosed")
+        (v .:? "endApplicationsDate") <*>
+        (v .:? "applicationsClosed")
+
+instance FromJSON (ServiceResult Challenger) where
+    parseJSON (Object v) =
+        ServiceResult <$>
+        (v .:? "success") <*>
+        (v .:? "error")
+
+data Challenger = Challenger
+    { challenger_userId :: Int -- Not the same
+    , challenger_anonymousIdentifier :: Int
+    , challenger_pseudo :: String
+    , challenger_online :: Bool
+    , challenger_cheater :: Bool
+    , challenger_isNewHandleGf :: Bool
+    , challenger_progress :: String -- "EQUAL" | ...
+    , challenger_testSessionHandle :: String
+    , challenger_challengeId :: Int
+    , challenger_testsessionId :: Int
+    -- codingamer_formValues
+    } deriving Show
+
+instance FromJSON Challenger where
+    parseJSON (Object v) =
+        Challenger <$>
+        (v .: "userId") <*>
+        (v .: "anonymousIdentifier") <*>
+        (v .: "pseudo") <*>
+        (v .: "online") <*>
+        (v .: "cheater") <*>
+        (v .: "isNewHandleGf") <*>
+        (v .: "progress") <*>
+        (v .: "testSessionHandle") <*>
+        (v .: "challengeId") <*>
+        (v .: "testsessionId")
 
 ----------------------------------------------------------------------------------------------------
 
@@ -482,6 +518,40 @@ connectToMultiGame (Credentials email password) challengeTitle = do
 
     return (userId, gameId)
 
+{- | Same thing as play but dedicated to the ongoing challenge (if any).
+-}
+playLatest
+    :: Credentials -- ^ A user credentials.
+    -> String -- ^ The source to submit (even if not used).
+    -> [AgentId] -- ^ The agents for the game.
+    -> Maybe String -- ^ Optional game options (including the random seed).
+    -> IO (Either SessionError GameResult) -- ^ The error or the game result on success.
+playLatest credentials source agents gameOptions = runSession $ dumpError $ do
+    (userId, testSessionHandle) <- connectToOngoingGame credentials
+
+    let playData = Play source "Haskell" (Multi agents gameOptions)
+
+    gameResult <- wsPlay testSessionHandle playData
+    liftIO $ do
+        putStrLn $ "Ranks: " ++ show (gameResult_ranks gameResult)
+        putStrLn $ "Game options: " ++ show (gameResult_refereeInput gameResult)
+
+    return gameResult
+
+connectToOngoingGame :: Credentials -> Session (Int, String)
+connectToOngoingGame (Credentials email password) = do
+    userId <- login_userId <$> wsLoginSiteV2 email password
+    liftIO $ putStrLn $ "User ID: " ++ show userId
+
+    challenge <- wsFindXNextVisibleChallenges 1 >>= (asMandatory "No ongoing challenge found" . listToMaybe)
+    let (challengeTitle, challengeId) = (challenge_title &&& challenge_publicId) challenge
+    liftIO $ putStrLn $ "Challenge title: " ++ show challengeTitle
+
+    testSessionHandle <- challenger_testSessionHandle <$> wsFindChallengerByChallenge challengeId userId
+    liftIO $ putStrLn $ "Test session handle: " ++ show testSessionHandle
+
+    return (userId, testSessionHandle)
+
 data Credentials = Credentials
     { credentials_email :: String
     , credentials_password :: String
@@ -558,6 +628,21 @@ wsGenerateSessionFromPuzzleIdV2 userId gameId = handleResult $ post'
     "https://www.codingame.com/services/PuzzleRemoteService/generateSessionFromPuzzleIdV2"
     [toJSON userId, toJSON gameId]
 
+wsFindXNextVisibleChallenges
+    :: Int -- An index I guess (starting at 1)
+    -> Session [Challenge]
+wsFindXNextVisibleChallenges index = handleResult $ post'
+    "https://www.codingame.com/services/ChallengeRemoteService/findXNextVisibleChallenges"
+    [toJSON index]
+
+wsFindChallengerByChallenge
+    :: String -- ^ Game name.
+    -> Int -- ^ User ID.
+    -> Session Challenger
+wsFindChallengerByChallenge challengeTitle userId = handleResult $ post'
+    "https://www.codingame.com/services/ChallengeCandidateRemoteService/findChallengerByChallenge"
+    [toJSON challengeTitle, toJSON userId]
+
 wsSubmit
     :: String -- ^ Test session handle.
     -> Submit
@@ -613,7 +698,7 @@ dumpError session = catchError session $ \e -> do
 
 ----------------------------------------------------------------------------------------------------
 
--- | Every response carrie a success or a (logical) error. This function extract the first or
+-- | Every response carries a success or a (logical) error. This function extract the first or
 -- transform the latter into an error.
 handleResult :: Show a => Session (ServiceResult a) -> Session a
 handleResult session = do
@@ -679,3 +764,4 @@ testPlay = do
     let source = "main = putStrLn \"42\""
     credentials <- readCredentials "credentials.json"
     play credentials "Coders Strike Back" source [IdeCode, DefaultAi] Nothing
+

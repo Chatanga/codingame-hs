@@ -1,5 +1,5 @@
 name: codingame-hs
-version: 0.0.1
+version: 0.0.2
 cabal-version: >=1.2
 build-type: Simple
 license: BSD3
