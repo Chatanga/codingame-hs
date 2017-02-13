@@ -21,7 +21,7 @@ main = do
         -- To play a specific past challenge (using its name, not its ID).
         play credentials "Coders Strike Back" source [IdeCode, DefaultAi] Nothing
         -- To play any ongoing challenge (if any).
-        playLatest source [IdeCode, DefaultAi] Nothing
+        playLatest credentials source [IdeCode, DefaultAi] Nothing
 ```
 
 Install
