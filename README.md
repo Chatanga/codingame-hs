@@ -24,8 +24,25 @@ main = do
         playLatest credentials source [IdeCode, DefaultAi] Nothing
 ```
 
+Known limitations
+-----------------
+
+**SourcePackager**
+
+-   Although the module parses the sources it is provided to create a monolithic output, it won't be
+    able to solve any name clash between functions, nor handle incompatible qualified and/or hidden
+    import directives.
+
+**WebServices**
+
+-   The Codingame web API is not documented and keeps changing, regularly breaking this module.
+
+-   The credentials system should only works for pure Codingame accounts as opposed to linked
+    accounts using Google+ for instance.
+
 Install
 -------
 
-A `cabal install` will do the trick or just `cabal haddock` if you are only
-interrested in checking out the documentation.
+The library now uses [Stack](https://docs.haskellstack.org). A such it is now `stack install`
+instead of `cabal install` (or just `stack haddock` if you are only interrested in checking out the
+documentation.).
