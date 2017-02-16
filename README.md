@@ -37,7 +37,7 @@ Known limitations
 
 -   The Codingame web API is not documented and keeps changing, regularly breaking this module.
 
--   The credentials system should only works for pure Codingame accounts as opposed to linked
+-   The credentials system should only work for pure Codingame accounts as opposed to linked
     accounts using Google+ for instance.
 
 Install
