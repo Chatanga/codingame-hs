@@ -42,12 +42,13 @@ module Codingame.WebServices
     , Multi (..)
     , AgentId (..)
     , Credentials (..)
+    , testPlay
     ) where
 
 import Control.Applicative
 import Control.Arrow
 import Control.Monad.State
-import Control.Monad.Error -- Control.Monad.Except would be a better (future) choice.
+import Control.Monad.Except
 import Data.Aeson -- Need a higher version to generate FromJSON instances.
 import Data.Attoparsec.ByteString (parseOnly)
 import qualified Data.ByteString.Lazy.Char8 as LBS
@@ -110,9 +111,9 @@ data Login = Login
     , login_userId :: Int
     , login_userEmail :: String
     , login_countryCode :: String
-    , login_newFeatures :: [String]
-    , login_enabledNotifications :: [String]
-    , login_chatToken :: String
+    -- login_newFeatures :: [String]
+    -- login_enabledNotifications :: [String]
+    -- login_chatToken :: String
     -- login_notificationConfig
     -- login_actionTypes
     } deriving Show
@@ -127,10 +128,10 @@ instance FromJSON Login where
         (v .: "languageId") <*>
         (v .: "userId") <*>
         (v .: "userEmail") <*>
-        (v .: "countryCode") <*>
-        (v .: "newFeatures") <*>
-        (v .: "enabledNotifications") <*>
-        (v .: "chatToken")
+        (v .: "countryCode")
+        -- (v .: "newFeatures") <*>
+        -- (v .: "enabledNotifications") <*>
+        -- (v .: "chatToken")
 
 data User = User
     { user_id :: Int
@@ -209,18 +210,18 @@ data GamePuzzleProgress = GamePuzzleProgress
     { progress_id :: Int
     , progress_level :: String
     , progress_rank :: Maybe Int
-    , progress_thumbnailBinaryId :: Maybe Int
-    , progress_previewBinaryId :: Maybe Int
+    -- progress_thumbnailBinaryId :: Maybe Int
+    -- progress_previewBinaryId :: Maybe Int
     , progress_title :: String
-    , progress_achievementScore :: Int
-    , progress_validatorScore :: Int
-    , progress_achievementCount :: Int
-    , progress_doneAchievementCount :: Int
-    , progress_totalScore :: Int
-    , progress_unlocked :: Bool
-    , progress_solvedCount :: Int
-    , progress_optimCriteriaId :: Maybe String
-    , progress_creationTime :: Int
+    -- progress_achievementScore :: Int
+    -- progress_validatorScore :: Int
+    -- progress_achievementCount :: Int
+    -- progress_doneAchievementCount :: Int
+    -- progress_totalScore :: Int
+    -- progress_unlocked :: Bool
+    -- progress_solvedCount :: Int
+    -- progress_optimCriteriaId :: Maybe String
+    -- progress_creationTime :: Int
     -- progress_topics
     } deriving Show
 
@@ -230,18 +231,18 @@ instance FromJSON GamePuzzleProgress where
         (v .: "id") <*>
         (v .: "level") <*>
         (v .:? "rank") <*>
-        (v .:? "thumbnailBinaryId") <*>
-        (v .:? "previewBinaryId") <*>
-        (v .: "title") <*>
-        (v .: "achievementScore") <*>
-        (v .: "validatorScore") <*>
-        (v .: "achievementCount") <*>
-        (v .: "doneAchievementCount") <*>
-        (v .: "totalScore") <*>
-        (v .: "unlocked") <*>
-        (v .: "solvedCount") <*>
-        (v .:? "optimCriteriaId") <*>
-        (v .: "creationTime")
+        -- (v .:? "thumbnailBinaryId") <*>
+        -- (v .:? "previewBinaryId") <*>
+        (v .: "title")
+        -- (v .: "achievementScore") <*>
+        -- (v .: "validatorScore") <*>
+        -- (v .: "achievementCount") <*>
+        -- (v .: "doneAchievementCount") <*>
+        -- (v .: "totalScore") <*>
+        -- (v .: "unlocked") <*>
+        -- (v .: "solvedCount") <*>
+        -- (v .:? "optimCriteriaId") <*>
+        -- (v .: "creationTime")
 
 ----------------------------------------------------------------------------------------------------
 
@@ -474,8 +475,7 @@ submit credentials challengeTitle source = runSession $ dumpError $ do
 
     testSessionHandle <- testSession_handle <$> wsGenerateSessionFromPuzzleIdV2 (Just userId) gameId
     agentId <- wsSubmit testSessionHandle submitData
-    liftIO $ do
-        putStrLn $ "Agent ID: " ++ show agentId
+    liftIO $ putStrLn $ "Agent ID: " ++ show agentId
 
     return agentId
 
@@ -686,10 +686,10 @@ data SessionState = SessionState
 
 type SessionError = String
 
-type Session = StateT SessionState (ErrorT SessionError IO)
+type Session = StateT SessionState (ExceptT SessionError IO)
 
 runSession :: Session a -> IO (Either SessionError a)
-runSession session = runErrorT (evalStateT session (SessionState []))
+runSession session = runExceptT (evalStateT session (SessionState []))
 
 dumpError :: Session a -> Session a
 dumpError session = catchError session $ \e -> do
@@ -717,7 +717,7 @@ post
 post url body = do
     cookies <- sessionState_cookies <$> get
     manager <- liftIO $ newManager tlsManagerSettings
-    initialRequest <- liftIO $ parseUrl url
+    initialRequest <- liftIO $ parseUrlThrow url
     let request = initialRequest
             { method = "POST"
             , requestBody = RequestBodyLBS body
@@ -764,4 +764,3 @@ testPlay = do
     let source = "main = putStrLn \"42\""
     credentials <- readCredentials "credentials.json"
     play credentials "Coders Strike Back" source [IdeCode, DefaultAi] Nothing
-
