@@ -4,8 +4,6 @@ A small module to create monolithic sources from multiples files.
 module Codingame.SourcePackager
     ( createMonolithicSource
     , createMonolithicSourceWithMode
-      -- * Unit testing
-    , sourcePackagerTestGroup
     ) where
 
 import Control.Exception
@@ -23,10 +21,6 @@ import Prelude hiding (catch)
 import System.FilePath
 import System.IO
 import System.IO.Error hiding (catch)
-
-import Test.HUnit
-import Test.Framework
-import Test.Framework.Providers.HUnit
 
 import Codingame.Debug
 import Codingame.Misc
@@ -81,7 +75,7 @@ createMonolithicSourceWithMode parseMode sourceFile = do
         importDecls = mergeImportDecls (fmap fst contributions)
         decls = fmap patchRunMain (concatMap snd contributions)
         mergedCode =
-            (Module srcLoc (ModuleName "Main") pragmas warningText exportSpec importDecls decls)
+            Module srcLoc (ModuleName "MainTest") pragmas warningText exportSpec importDecls decls
 
     return (prettyPrint mergedCode)
 
@@ -141,7 +135,7 @@ locateImport srcDir importedModuleName = importedSourceFile where
     (parents, child) = importedModuleName
         & fmap Text.unpack . Text.splitOn (Text.pack ".") . Text.pack
         & (init &&& last)
-    importedSourceFile = (foldl (</>) srcDir parents) </> child <.> ".hs"
+    importedSourceFile = foldl (</>) srcDir parents </> child <.> ".hs"
 
 mergeImportDecls :: [[ImportDecl]] -> [ImportDecl]
 mergeImportDecls decls =
@@ -151,10 +145,10 @@ getModuleName (ModuleName moduleName) = moduleName
 
 patchRunMain :: Decl -> Decl
 patchRunMain decl = case decl of
-    (TypeSig srcLoc names t) -> (TypeSig srcLoc (fmap patchName names) t)
-    (FunBind matchs) -> (FunBind (fmap patchMatch matchs))
+    (TypeSig srcLoc names t) -> TypeSig srcLoc (fmap patchName names) t
+    (FunBind matchs) -> FunBind (fmap patchMatch matchs)
     -- (PatBind srcLoc pat mType rhs binds) -> (PatBind srcLoc (patchPat pat) mType rhs binds)
-    (PatBind srcLoc pat rhs binds) -> (PatBind srcLoc (patchPat pat) rhs binds)
+    (PatBind srcLoc pat rhs binds) -> PatBind srcLoc (patchPat pat) rhs binds
     _ -> decl
     where
         patchName (Ident "runMain") = Ident "main"
@@ -165,32 +159,3 @@ patchRunMain decl = case decl of
 
         patchPat (PVar name) = PVar (patchName name)
         patchPat pat = pat
-
-----------------------------------------------------------------------------------------------------
-
-sourcePackagerTestGroup = testGroup "SourcePackager"
-    [   testCase "testCreateMonolithicSourceWithMode" testCreateMonolithicSourceWithMode
-    ]
-
-testCreateMonolithicSourceWithMode :: Assertion
-testCreateMonolithicSourceWithMode = do
-
-    let sourceFile = "test/Alpha.hs"
-
-    result <- try (createMonolithicSource sourceFile) :: IO (Either Control.Exception.SomeException String)
-    case result of
-        Left e -> assertBool "Ok" True
-        Right _ -> assertFailure "Ambiguous infix expression error expected."
-
-    -- A proper parsing could require to know the fixities for any
-    -- operator defined in a source file and used in another.
-    let importedFixities = infixl_ 8 ["|>"]
-        fixities' = importedFixities ++ fromMaybe [] (fixities defaultParseMode)
-        parseMode = defaultParseMode{ fixities = Just fixities' }
-
-    source <- createMonolithicSourceWithMode parseMode sourceFile
-
-    expectedSource <- readFile "test/Expected.hs"
-
-    let trim = unwords . words
-    trim expectedSource @=? trim source

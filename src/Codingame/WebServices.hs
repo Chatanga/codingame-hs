@@ -42,7 +42,6 @@ module Codingame.WebServices
     , Multi (..)
     , AgentId (..)
     , Credentials (..)
-    , testPlay
     ) where
 
 import Control.Applicative
@@ -135,7 +134,7 @@ instance FromJSON Login where
 
 data User = User
     { user_id :: Int
-    , user_email :: String
+    , user_email :: String
     , user_languageId :: Int
     , user_valid :: Bool
     -- user_properties
@@ -757,10 +756,3 @@ parseResponse response =
                 Error conversionError -> Left conversionError
                 Success result -> Right result
         else Left (LBS.unpack $ responseBody response)
-
-----------------------------------------------------------------------------------------------------
-
-testPlay = do
-    let source = "main = putStrLn \"42\""
-    credentials <- readCredentials "credentials.json"
-    play credentials "Coders Strike Back" source [IdeCode, DefaultAi] Nothing

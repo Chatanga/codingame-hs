@@ -1,50 +1,49 @@
-name: codingame-hs
-version: 0.0.3
-cabal-version: >=1.2
-build-type: Simple
-license: BSD3
-license-file: LICENSE
-maintainer: florent@hihan.org
-stability: experimental
-synopsis: Simple library to play with the Codingame site.
-description:  
-category: Game
-author: Florent Lioult
-data-dir: ""
- 
+name:                codingame-hs
+version:             0.0.4
+-- synopsis:
+-- description:
+homepage:            https://github.com/chatanga/codingame-hs#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Florent Lioult
+maintainer:          florent@hihan.org
+copyright:           2017 Florent Lioult
+category:            Game
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
 library
-    build-depends: HTTP -any, HUnit -any, aeson -any, attoparsec -any,
-                   base -any, bytestring -any, containers -any, filepath -any,
-                   haskell-src-exts -any, http-client -any, http-client-tls -any,
-                   http-types -any, mtl -any, test-framework -any,
-                   test-framework-hunit -any, text -any
-    exposed-modules: Codingame.SourcePackager Codingame.WebServices
-    exposed: True
-    buildable: True
-    cpp-options: -DMAIN_FUNCTION=testMain
-    hs-source-dirs: src
-    other-modules: Codingame.Misc Codingame.Debug
- 
-executable codingame-hs
-    build-depends: HTTP -any, HUnit -any, aeson -any, attoparsec -any,
-                   base -any, bytestring -any, containers -any, filepath -any,
-                   haskell-src-exts -any, http-client -any, http-client-tls -any,
-                   http-types -any, mtl -any, test-framework -any,
-                   test-framework-hunit -any, text -any
-    main-is: Main.hs
-    buildable: True
-    hs-source-dirs: src
-    other-modules: Codingame.Misc Codingame.Debug
-                   Codingame.SourcePackager Codingame.WebServices
- 
-test-suite test-codingame-hs
-    build-depends: HTTP -any, HUnit -any, aeson -any, attoparsec -any,
-                   base -any, bytestring -any, containers -any, filepath -any,
-                   haskell-src-exts -any, http-client -any, http-client-tls -any,
-                   http-types -any, mtl -any, test-framework -any,
-                   test-framework-hunit -any, text -any
-    type: exitcode-stdio-1.0
-    main-is: Main.hs
-    buildable: True
-    cpp-options: -DMAIN_FUNCTION=testMain
-    hs-source-dirs: src
+  hs-source-dirs:      src
+  exposed-modules:     Codingame.SourcePackager Codingame.WebServices
+  other-modules:       Codingame.Misc Codingame.Debug
+  build-depends:       base -any,
+                       HTTP >= 4000.3.3 && < 4000.4,
+                       aeson >= 0.11.2 && < 1,
+                       attoparsec >= 0.13.1 && < 1,
+                       bytestring >= 0.10.8 && < 1,
+                       containers >= 0.5.7 && < 1,
+                       filepath >= 1.4.1 && < 2,
+                       haskell-src-exts >= 1.17.1 && < 1.18,
+                       http-client >= 0.4.31 && < 0.5,
+                       http-client-tls >= 0.2.4 && < 0.3,
+                       http-types >= 0.9.1 && < 0.10,
+                       mtl >= 2.2.1 && < 3,
+                       text >= 1.2.2 && < 2
+  default-language:    Haskell2010
+
+test-suite codingame-hs-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Main.hs
+  build-depends:       base -any,
+                       codingame-hs,
+                       haskell-src-exts >= 1.17.1 && < 1.18,
+                       HUnit >= 1.3.1 && < 2,
+                       test-framework >= 0.8.1 && < 1,
+                       test-framework-hunit >= 0.3.0 && < 1
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/chatanga/codingame-hs
