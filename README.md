@@ -29,7 +29,7 @@ Known limitations
 
 **SourcePackager**
 
--   Although the module parses the sources it is provided to create a monolithic output, it won't be
+-   Although the module parses the sources provided to it to create a monolithic output, it won't be
     able to solve any name clash between functions, nor handle incompatible qualified and/or hidden
     import directives.
 
@@ -37,7 +37,7 @@ Known limitations
 
 -   The Codingame web API is not documented and keeps changing, regularly breaking this module.
 
--   The credentials system should only works for pure Codingame accounts as opposed to linked
+-   The credentials system should only work for pure Codingame accounts as opposed to linked
     accounts using Google+ for instance.
 
 Install
