@@ -35,7 +35,7 @@ Known limitations
 
 **WebServices**
 
--   The Codingame web API is not documented and keeps changing, regularly breaking this module.
+-   Changes in the Codingame web API often break this module, even when they shouldn’t matter.
 
 -   The credentials system should only work for pure Codingame accounts as opposed to linked
     accounts using Google+ for instance.
@@ -43,6 +43,6 @@ Known limitations
 Install
 -------
 
-The library now uses [Stack](https://docs.haskellstack.org). A such it is now `stack install`
+The library now uses [Stack](https://docs.haskellstack.org). As such it is now `stack install`
 instead of `cabal install` (or just `stack haddock` if you are only interrested in checking out the
 documentation.).

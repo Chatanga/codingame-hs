@@ -53,6 +53,7 @@ import Data.Attoparsec.ByteString (parseOnly)
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.ByteString as BS
 import Data.Char
+import Data.Function ((&))
 import qualified Data.List as List
 import Data.Maybe
 import Data.Ord
@@ -63,7 +64,6 @@ import System.IO
 import Text.Printf (printf)
 
 import Codingame.Debug
-import Codingame.Misc
 
 ----------------------------------------------------------------------------------------------------
 
@@ -726,7 +726,7 @@ post url body = do
                 ]
             }
     let thirtySeconds = 30000000
-    response <- liftIO $ httpLbs request{responseTimeout = Just thirtySeconds} manager
+    response <- liftIO $ httpLbs request{responseTimeout = responseTimeoutMicro thirtySeconds} manager
     let cookies' = removeOlders (decodeSetCookies response ++ cookies)
         removeOlders = List.nubBy (\x y -> EQ == comparing fst x y)
     put (SessionState cookies')

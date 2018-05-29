@@ -1,4 +1,4 @@
-module Main where
+module MainTest where
 import Gamma
 import Delta.Zeta
 main = do putStrLn (show other)
@@ -7,7 +7,7 @@ other
       head . groupBy (\ a b -> a `mod` 2 == b `mod` 2)
       |> sum
 beta = putStrLn "beta"
- 
+
 infixl 8 |>
 x |> y = y $ x
 epsilon = putStrLn "epsilon"

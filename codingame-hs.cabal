@@ -1,5 +1,5 @@
 name:                codingame-hs
-version:             0.0.4
+version:             0.1.0
 -- synopsis:
 -- description:
 homepage:            https://github.com/chatanga/codingame-hs#readme
@@ -16,32 +16,32 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Codingame.SourcePackager Codingame.WebServices
-  other-modules:       Codingame.Misc Codingame.Debug
-  build-depends:       base -any,
-                       HTTP >= 4000.3.3 && < 4000.4,
-                       aeson >= 0.11.2 && < 1,
-                       attoparsec >= 0.13.1 && < 1,
-                       bytestring >= 0.10.8 && < 1,
-                       containers >= 0.5.7 && < 1,
-                       filepath >= 1.4.1 && < 2,
-                       haskell-src-exts >= 1.17.1 && < 1.18,
-                       http-client >= 0.4.31 && < 0.5,
-                       http-client-tls >= 0.2.4 && < 0.3,
-                       http-types >= 0.9.1 && < 0.10,
-                       mtl >= 2.2.1 && < 3,
-                       text >= 1.2.2 && < 2
+  other-modules:       Codingame.Debug
+  build-depends:       base,
+                       HTTP,
+                       aeson,
+                       attoparsec,
+                       bytestring,
+                       containers,
+                       filepath,
+                       haskell-src-exts,
+                       http-client,
+                       http-client-tls,
+                       http-types,
+                       mtl,
+                       text
   default-language:    Haskell2010
 
 test-suite codingame-hs-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Main.hs
-  build-depends:       base -any,
+  build-depends:       base,
                        codingame-hs,
-                       haskell-src-exts >= 1.17.1 && < 1.18,
-                       HUnit >= 1.3.1 && < 2,
-                       test-framework >= 0.8.1 && < 1,
-                       test-framework-hunit >= 0.3.0 && < 1
+                       haskell-src-exts,
+                       HUnit,
+                       test-framework,
+                       test-framework-hunit
   default-language:    Haskell2010
 
 source-repository head

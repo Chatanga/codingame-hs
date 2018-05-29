@@ -37,8 +37,8 @@ testCreateMonolithicSourceWithMode = do
         fixities' = importedFixities ++ fromMaybe [] (fixities defaultParseMode)
         parseMode = defaultParseMode{ fixities = Just fixities' }
 
-    -- source <- createMonolithicSourceWithMode parseMode sourceFile
-    source <- createMonolithicSource sourceFile
+    source <- createMonolithicSourceWithMode parseMode sourceFile
+    -- source <- createMonolithicSource sourceFile
 
     expectedSource <- readFile "data/Expected.hs"
 
@@ -57,7 +57,7 @@ testPlay = do
     result <- play credentials "Coders Strike Back" source [IdeCode, DefaultAi] Nothing
     case result of
         Left error -> assertFailure (show error)
-        Right (GameResult _ _ _ _ _ _) -> return ()
+        Right GameResult{} -> return ()
     return ()
 
 ----------------------------------------------------------------------------------------------------
@@ -68,4 +68,3 @@ main = defaultMain
         ,   webServicesTestGroup
         ]
     ]
-

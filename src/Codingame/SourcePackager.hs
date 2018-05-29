@@ -10,24 +10,24 @@ import Control.Exception
 import Control.Applicative
 import Control.Arrow
 import Control.Monad
+import Data.Function ((&))
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.Ord
 import qualified Data.Text as Text
 import Language.Haskell.Exts
-import Language.Haskell.Exts.Parser
+-- import Language.Haskell.Exts.Parser
 import Prelude hiding (catch)
 import System.FilePath
 import System.IO
 import System.IO.Error hiding (catch)
 
 import Codingame.Debug
-import Codingame.Misc
 
 ----------------------------------------------------------------------------------------------------
 
-type ModuleSourceMap = Map.Map FilePath ([ImportDecl], [Decl])
+type ModuleSourceMap = Map.Map FilePath ([ImportDecl SrcSpanInfo], [Decl SrcSpanInfo])
 
 {- | Create a monolithic source by concatenating a Haskell source file and all its local
 dependencies.
@@ -67,7 +67,7 @@ createMonolithicSourceWithMode :: ParseMode -> FilePath -> IO String
 createMonolithicSourceWithMode parseMode sourceFile = do
     moduleSourceMap <- processModule parseMode Map.empty sourceFile
 
-    let contributions = Map.elems moduleSourceMap :: [([ImportDecl], [Decl])]
+    let contributions = Map.elems moduleSourceMap :: [([ImportDecl SrcSpanInfo], [Decl SrcSpanInfo])]
         srcLoc = error "no srcLoc"
         pragmas = []
         warningText = Nothing
@@ -75,7 +75,7 @@ createMonolithicSourceWithMode parseMode sourceFile = do
         importDecls = mergeImportDecls (fmap fst contributions)
         decls = fmap patchRunMain (concatMap snd contributions)
         mergedCode =
-            Module srcLoc (ModuleName "MainTest") pragmas warningText exportSpec importDecls decls
+            Module srcLoc (Just (ModuleHead noSrcSpan (ModuleName noSrcSpan "MainTest") warningText exportSpec)) pragmas importDecls decls
 
     return (prettyPrint mergedCode)
 
@@ -101,12 +101,12 @@ parseModuleSource parseMode moduleSourceMap sourceFile source = do
             ParseFailed srcLoc message
                 -> error (message ++ "\nAt: " ++ show srcLoc{ srcFilename = sourceFile })
 
-        (Module srcLoc (ModuleName moduleName) pragmas warningText exportSpec importDecls decls) =
+        (Module _ (Just (ModuleHead _ (ModuleName _ moduleName) pragmas warningText)) exportSpec importDecls decls) =
             moduleCode
 
         srcDir = getSrcDir sourceFile moduleName
 
-        dependencies :: [(ImportDecl, FilePath)]
+        dependencies :: [(ImportDecl SrcSpanInfo, FilePath)]
         dependencies =
             fmap (id &&& (locateImport srcDir . getModuleName . importModule)) importDecls
 
@@ -137,25 +137,26 @@ locateImport srcDir importedModuleName = importedSourceFile where
         & (init &&& last)
     importedSourceFile = foldl (</>) srcDir parents </> child <.> ".hs"
 
-mergeImportDecls :: [[ImportDecl]] -> [ImportDecl]
+mergeImportDecls :: [[ImportDecl SrcSpanInfo]] -> [ImportDecl SrcSpanInfo]
 mergeImportDecls decls =
     nubBy (\d1 d2 -> (EQ == ) $ comparing (getModuleName . importModule) d1 d2) (concat decls)
 
-getModuleName (ModuleName moduleName) = moduleName
+getModuleName (ModuleName _ moduleName) = moduleName
 
-patchRunMain :: Decl -> Decl
+patchRunMain :: Decl SrcSpanInfo -> Decl SrcSpanInfo
 patchRunMain decl = case decl of
     (TypeSig srcLoc names t) -> TypeSig srcLoc (fmap patchName names) t
-    (FunBind matchs) -> FunBind (fmap patchMatch matchs)
-    -- (PatBind srcLoc pat mType rhs binds) -> (PatBind srcLoc (patchPat pat) mType rhs binds)
+    (FunBind srcLoc matchs) -> FunBind srcLoc (fmap patchMatch matchs)
     (PatBind srcLoc pat rhs binds) -> PatBind srcLoc (patchPat pat) rhs binds
     _ -> decl
     where
-        patchName (Ident "runMain") = Ident "main"
+        patchName (Ident srcLoc "runMain") = Ident srcLoc "main"
         patchName name = name
 
-        patchMatch (Match srcLoc name pats mType rhs binds) =
-            Match srcLoc (patchName name) pats mType rhs binds
+        patchMatch (Match srcLoc name pats rhs binds) =
+            Match srcLoc (patchName name) pats rhs binds
+        patchMatch (InfixMatch srcLoc pat name pats rhs binds) =
+            InfixMatch srcLoc pat (patchName name) pats rhs binds
 
-        patchPat (PVar name) = PVar (patchName name)
+        patchPat (PVar srcLoc name) = PVar srcLoc (patchName name)
         patchPat pat = pat
