@@ -1,23 +1,25 @@
-name:                codingame-hs
-version:             0.1.0
--- synopsis:
--- description:
-homepage:            https://github.com/chatanga/codingame-hs#readme
-license:             BSD3
-license-file:        LICENSE
-author:              Florent Lioult
-maintainer:          florent@hihan.org
-copyright:           2017 Florent Lioult
-category:            Game
-build-type:          Simple
-extra-source-files:  README.md
-cabal-version:       >=1.10
+name:           codingame-hs
+version:        0.1.0
+cabal-version:  >=1.10
+build-type:     Simple
+license:        MIT
+license-file:   LICENSE
+homepage:       https://github.com/Chatanga/codingame-hs#readme
+author:         Florent Lioult
+maintainer:     florent@hihan.org
+copyright:      2016 Florent Lioult
+category:       Game
+synopsis:       A simple library to play with the Codingame site.
+
+source-repository head
+    type: git
+    location: https://github.com/Chatanga/codingame-hs
 
 library
   hs-source-dirs:      src
   exposed-modules:     Codingame.SourcePackager Codingame.WebServices
   other-modules:       Codingame.Debug
-  build-depends:       base,
+  build-depends:       base >=4.7 && <5,
                        HTTP,
                        aeson,
                        attoparsec,
@@ -44,6 +46,3 @@ test-suite codingame-hs-test
                        test-framework-hunit
   default-language:    Haskell2010
 
-source-repository head
-  type:     git
-  location: https://github.com/chatanga/codingame-hs
