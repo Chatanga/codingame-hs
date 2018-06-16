@@ -74,8 +74,9 @@ createMonolithicSourceWithMode parseMode sourceFile = do
         exportSpec = Nothing
         importDecls = mergeImportDecls (fmap fst contributions)
         decls = fmap patchRunMain (concatMap snd contributions)
-        mergedCode =
-            Module srcLoc (Just (ModuleHead noSrcSpan (ModuleName noSrcSpan "MainTest") warningText exportSpec)) pragmas importDecls decls
+        -- moduleHead = Just (ModuleHead noSrcSpan (ModuleName noSrcSpan "MainTest") warningText exportSpec)
+        moduleHead = Nothing
+        mergedCode = Module srcLoc moduleHead pragmas importDecls decls
 
     return (prettyPrint mergedCode)
 
