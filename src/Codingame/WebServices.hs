@@ -15,6 +15,7 @@ module Codingame.WebServices
     ( -- * Complex requests
       submit
     , play
+    , submitLatest
     , playLatest
     , readCredentials
       -- * Elementary requests
@@ -517,6 +518,22 @@ connectToMultiGame (Credentials email password) challengeTitle = do
 
     return (userId, gameId)
 
+{- | Same thing as submit but dedicated to the ongoing challenge (if any).
+-}
+submitLatest
+    :: Credentials -- ^ A user credentials.
+    -> String -- ^ The source to submit (even if not used).
+    -> IO (Either SessionError Int) -- ^ The error or the submitted agent ID on success.
+submitLatest credentials source = runSession $ dumpError $ do
+    (userId, testSessionHandle) <- connectToOngoingGame credentials
+
+    let submitData = Submit source "Haskell"
+
+    agentId <- wsSubmit testSessionHandle submitData
+    liftIO $ putStrLn $ "Agent ID: " ++ show agentId
+
+    return agentId
+
 {- | Same thing as play but dedicated to the ongoing challenge (if any).
 -}
 playLatest
@@ -648,7 +665,7 @@ wsSubmit
     -> Session Int
 wsSubmit testSessionHandle submit = handleResult $ post'
     "https://www.codingame.com/services/TestSessionRemoteService/submit"
-    [toJSON testSessionHandle, toJSON submit]
+    [toJSON testSessionHandle, toJSON submit, Null] -- ^ Clarify the 3rd argument meaning.
 
 wsPlay
     :: String -- ^ Test session handle.

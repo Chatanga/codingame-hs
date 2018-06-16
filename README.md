@@ -16,12 +16,15 @@ Codingame IDE (or directly to the arena) to test it against other players into a
 
 ```haskell
 main = do
-        source <- createMonolithicSource "src/Golgoth.hs"
+        source <- createMonolithicSource "src/Player.hs"
         credentials <- readCredentials "credentials.json"
         -- To play a specific past challenge (using its name, not its ID).
-        play credentials "Coders Strike Back" source [IdeCode, DefaultAi] Nothing
+        play credentials "Code of Kutulu" source [IdeCode, DefaultAi, DefaultAi, DefaultAi] Nothing
         -- To play any ongoing challenge (if any).
-        playLatest credentials source [IdeCode, DefaultAi] Nothing
+        playLatest credentials source [IdeCode, DefaultAi, DefaultAi, DefaultAi] Nothing
+        -- To submit a code into the arena.
+        submitLatest credentials source
+        return ()
 ```
 
 Known limitations

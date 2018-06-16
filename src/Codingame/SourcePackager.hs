@@ -17,7 +17,6 @@ import Data.Maybe
 import Data.Ord
 import qualified Data.Text as Text
 import Language.Haskell.Exts
--- import Language.Haskell.Exts.Parser
 import Prelude hiding (catch)
 import System.FilePath
 import System.IO
