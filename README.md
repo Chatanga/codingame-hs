@@ -1,7 +1,7 @@
 codingame-hs
 ============
 
-A simple library to play with the [Codingame](https://www.codingame.com) site.
+A simple library to play with the [Codingame](https://www.codingame.com/) site.
 
 Usage
 -----
@@ -46,6 +46,19 @@ Known limitations
 Install
 -------
 
-The library now uses [Stack](https://docs.haskellstack.org). As such it is now `stack install`
-instead of `cabal install` (or just `stack haddock` if you are only interrested in checking out the
-documentation.).
+The library now uses [Stack](https://docs.haskellstack.org/), so nothing to add.
+
+Since this library is not on [Hackage](https://hackage.haskell.org/),
+the simplest way to actually use it for one of your Codingame bots (that’s how I proceed for mines)
+is to create a dedicated Stack project for you contest bot,
+download the codingame-hs project alongside,
+then add the following depenpency into your stack.yaml file:
+
+```yaml
+packages:
+- .
+- ../codingame-hs
+```
+
+A `stack build` will (re)build your project as well as the library.
+
