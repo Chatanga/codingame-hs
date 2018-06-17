@@ -52,7 +52,7 @@ Since this library is not on [Hackage](https://hackage.haskell.org/),
 the simplest way to actually use it for one of your Codingame bots (that’s how I proceed for mines)
 is to create a dedicated Stack project for you contest bot,
 download the codingame-hs project alongside,
-then add the following depenpency into your stack.yaml file:
+then add the following depenpency into your `stack.yaml` file:
 
 ```yaml
 packages:
