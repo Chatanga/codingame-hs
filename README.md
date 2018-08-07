@@ -1,12 +1,12 @@
 codingame-hs
 ============
 
-A simple library to play with the [Codingame](https://www.codingame.com/) site.
+A simple package to play with the [Codingame](https://www.codingame.com/) site.
 
 Usage
 -----
 
-For now, this library includes two modules:
+For now, this package includes two modules:
 
 -   **SourcePackager** to create monolithic sources from multiples files.
 -   **WebServices** to gain access to the Codingame web services API from your code.
@@ -18,14 +18,23 @@ Codingame IDE (or directly to the arena) to test it against other players into a
 main = do
         source <- createMonolithicSource "src/Player.hs"
         credentials <- readCredentials "credentials.json"
+
         -- To play a specific past challenge (using its name, not its ID).
-        play credentials "Code of Kutulu" source [IdeCode, DefaultAi, DefaultAi, DefaultAi] Nothing
+        playInIDE credentials (ChallengeTitle "Coders Strike Back") source [IdeCode, DefaultAi] Nothing
+
         -- To play any ongoing challenge (if any).
-        playLatest credentials source [IdeCode, DefaultAi, DefaultAi, DefaultAi] Nothing
+        playInIDE credentials OngoingChallenge source [IdeCode, DefaultAi, DefaultAi, DefaultAi] Nothing
+
         -- To submit a code into the arena.
-        submitLatest credentials source
+        submitToArena credentials OngoingChallenge source
+
         return ()
 ```
+
+If you are looking for a more detailled usage, have a look to this
+[skeleton project](https://github.com/Chatanga/codingame-hs-skeleton) which demonstrate how this package
+could be used in practice during a contest. Among other things, it introduces a small trick to easily
+replay locally a game, conveniently allowing the use of GHCI to debug the code.
 
 Known limitations
 -----------------
@@ -46,9 +55,9 @@ Known limitations
 Install
 -------
 
-The library now uses [Stack](https://docs.haskellstack.org/), so nothing to add.
+The package now uses [Stack](https://docs.haskellstack.org/), so nothing to add.
 
-Since this library is not on [Hackage](https://hackage.haskell.org/),
+Since this package is not on [Hackage](https://hackage.haskell.org/),
 the simplest way to actually use it for one of your Codingame bots (that’s how I proceed for mines)
 is to create a dedicated Stack project for you contest bot,
 download the codingame-hs project alongside,
@@ -60,5 +69,4 @@ packages:
 - ../codingame-hs
 ```
 
-A `stack build` will (re)build your project as well as the library.
-
+A `stack build` will (re)build your project as well as the package.

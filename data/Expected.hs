@@ -1,4 +1,3 @@
-module MainTest where
 import Gamma
 import Delta.Zeta
 main = do putStrLn (show other)

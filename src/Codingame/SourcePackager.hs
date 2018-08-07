@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 {-|
 A small module to create monolithic sources from multiples files.
 -}
@@ -6,27 +8,27 @@ module Codingame.SourcePackager
     , createMonolithicSourceWithMode
     ) where
 
-import Control.Exception
-import Control.Applicative
 import Control.Arrow
 import Control.Monad
+import Control.Monad.Trans.Except
+import Control.Exception
+import Data.ByteString.Char8 (ByteString, pack, unpack)
 import Data.Function ((&))
+import Hpp
 import Data.List
-import qualified Data.Map as Map
-import Data.Maybe
+import qualified Data.Map.Lazy as Map
+import Data.Maybe (fromMaybe)
+import Data.Monoid ((<>))
 import Data.Ord
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Language.Haskell.Exts
-import Prelude hiding (catch)
 import System.FilePath
-import System.IO
-import System.IO.Error hiding (catch)
-
-import Codingame.Debug
+import System.IO.Error
 
 ----------------------------------------------------------------------------------------------------
 
-type ModuleSourceMap = Map.Map FilePath ([ImportDecl SrcSpanInfo], [Decl SrcSpanInfo])
+type ModuleSourceMap = Map.Map FilePath (Module SrcSpanInfo)
 
 {- | Create a monolithic source by concatenating a Haskell source file and all its local
 dependencies.
@@ -37,7 +39,14 @@ the resulting source, whereas the external modules are simply kept as imported m
 source code of \"System.IO\" won’t be included). An internal module is a module whose source file
 can be found in the same hierachical directory as the initial file provided. Per instance, when
 creating a monolithic source from \"src\/Machin.hs\", the source of an imported module named
-\"Truc.Bidule\" will be searched in \"src\/Truc\".
+\"Truc.Bidule\" will be searched in \"src\/Truc\". These transformations remains rather simple and
+won't be able to solve any name clash between functions, nor handle incompatible qualified and/or
+hidden import directives.
+
+Since this source concatenation remains pretty basic, processing directives are now supported to
+help keeping the generated source compatible with Codingame, mainly by prunning any unwanted
+dependencies (the CG_ARENA identifier is automatically defined). This way, it becomes possible to
+better integrate a bot with a development environment.
 
 Lastly, any function named \"runMain\" will be renamed \"main\". It allows you to generate a new
 valid program by only selecting a subset of your code base which uses another main function.
@@ -66,7 +75,9 @@ createMonolithicSourceWithMode :: ParseMode -> FilePath -> IO String
 createMonolithicSourceWithMode parseMode sourceFile = do
     moduleSourceMap <- processModule parseMode Map.empty sourceFile
 
-    let contributions = Map.elems moduleSourceMap :: [([ImportDecl SrcSpanInfo], [Decl SrcSpanInfo])]
+    let rewrittenModuleSourceMap = Map.map rewriteModule moduleSourceMap
+
+    let contributions = fmap (getContribution moduleSourceMap) (Map.assocs moduleSourceMap)
         srcLoc = error "no srcLoc"
         pragmas = []
         warningText = Nothing
@@ -79,11 +90,22 @@ createMonolithicSourceWithMode parseMode sourceFile = do
 
     return (prettyPrint mergedCode)
 
+getContribution :: ModuleSourceMap -> (FilePath, Module SrcSpanInfo) -> ([ImportDecl SrcSpanInfo], [Decl SrcSpanInfo])
+getContribution moduleSourceMap (sourceFile, moduleSource) = (getExternalImportDecls importDecls, decls)
+    where
+        (Module _ (Just (ModuleHead _ moduleName _ _)) exportSpec importDecls decls) =
+            moduleSource
+        srcDir = getSrcDir sourceFile (getModuleName moduleName)
+        getExternalImportDecls importDecls = importDecls
+            & fmap (id &&& (locateImport srcDir . getModuleName . importModule))
+            & filter (not . flip Map.member moduleSourceMap . snd)
+            & fmap fst
+
 processModule :: ParseMode -> ModuleSourceMap -> FilePath -> IO ModuleSourceMap
 processModule parseMode moduleSourceMap sourceFile =
     if Map.member sourceFile moduleSourceMap
-    then return moduleSourceMap
-    else readFile sourceFile >>= parseModuleSource parseMode moduleSourceMap sourceFile
+        then return moduleSourceMap
+        else readAndPreProcessFile sourceFile >>= parseModuleSource parseMode moduleSourceMap sourceFile
 
 processInternalModule :: ParseMode -> ModuleSourceMap -> FilePath -> IO ModuleSourceMap
 processInternalModule parseMode moduleSourceMap sourceFile = do
@@ -95,34 +117,29 @@ processInternalModule parseMode moduleSourceMap sourceFile = do
 
 parseModuleSource :: ParseMode -> ModuleSourceMap -> FilePath -> String -> IO ModuleSourceMap
 parseModuleSource parseMode moduleSourceMap sourceFile source = do
-    let moduleCode = case parseModuleWithMode parseMode source of
-            ParseOk moduleCode
-                -> moduleCode
+    let moduleSource = case parseModuleWithMode parseMode source of
+            ParseOk moduleSource
+                -> moduleSource
             ParseFailed srcLoc message
                 -> error (message ++ "\nAt: " ++ show srcLoc{ srcFilename = sourceFile })
 
-        (Module _ (Just (ModuleHead _ (ModuleName _ moduleName) pragmas warningText)) exportSpec importDecls decls) =
-            moduleCode
-
-        srcDir = getSrcDir sourceFile moduleName
-
-        dependencies :: [(ImportDecl SrcSpanInfo, FilePath)]
-        dependencies =
-            fmap (id &&& (locateImport srcDir . getModuleName . importModule)) importDecls
+        dependencies = getDependencies sourceFile moduleSource
 
         -- Reserve a slot for the module with an undefined value to avoid recursion.
-        moduleSourceMap' = Map.insert sourceFile (undefined, decls) moduleSourceMap
+        moduleSourceMap' = Map.insert sourceFile undefined moduleSourceMap
 
     moduleSourceMap'' <-
         foldM (processInternalModule parseMode) moduleSourceMap' (fmap snd dependencies)
 
-    let externalImportDecls = dependencies
-            & filter (not . flip Map.member moduleSourceMap'' . snd)
-            & fmap fst
-        -- Fill the reserved slot with a proper value.
-        moduleSourceMap''' = Map.insert sourceFile (externalImportDecls, decls) moduleSourceMap''
+    return $ Map.insert sourceFile moduleSource moduleSourceMap''
 
-    return moduleSourceMap'''
+getDependencies :: FilePath -> Module SrcSpanInfo -> [(ImportDecl SrcSpanInfo, FilePath)]
+getDependencies sourceFile moduleSource = fmap (id &&& getLocation) importDecls
+    where
+        (Module _ (Just (ModuleHead _ (ModuleName _ moduleName) _ _)) exportSpec importDecls decls) =
+            moduleSource
+        srcDir = getSrcDir sourceFile moduleName
+        getLocation = locateImport srcDir . getModuleName . importModule
 
 getSrcDir :: FilePath -> String -> FilePath
 getSrcDir sourceFile moduleName = srcDir where
@@ -141,7 +158,14 @@ mergeImportDecls :: [[ImportDecl SrcSpanInfo]] -> [ImportDecl SrcSpanInfo]
 mergeImportDecls decls =
     nubBy (\d1 d2 -> (EQ == ) $ comparing (getModuleName . importModule) d1 d2) (concat decls)
 
+getModuleName :: ModuleName SrcSpanInfo -> String
 getModuleName (ModuleName _ moduleName) = moduleName
+
+rewriteModule :: Module SrcSpanInfo -> Module SrcSpanInfo
+rewriteModule moduleSource = moduleSource
+
+findUsageFromMain :: ModuleSourceMap -> Set.Set (Decl SrcSpanInfo)
+findUsageFromMain = undefined
 
 patchRunMain :: Decl SrcSpanInfo -> Decl SrcSpanInfo
 patchRunMain decl = case decl of
@@ -160,3 +184,15 @@ patchRunMain decl = case decl of
 
         patchPat (PVar srcLoc name) = PVar srcLoc (patchName name)
         patchPat pat = pat
+
+readAndPreProcessFile :: FilePath -> IO String
+readAndPreProcessFile filePath = do
+    case addDefinition "CG_ARENA" "1" emptyHppState of
+        Just state -> readFile filePath >>= hpp state
+        Nothing -> error "Preprocessor definition did not parse"
+
+hpp :: HppState -> String -> IO String
+hpp st src =
+  case runExcept (expand st (preprocess (map pack (lines src)))) of
+    Left e -> error ("Error running hpp: " ++ show e)
+    Right (HppOutput _ ls, _) -> return (unlines (map unpack ls))

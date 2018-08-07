@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 module Main
     ( main
     ) where
@@ -65,6 +63,8 @@ testPlay = do
 main = defaultMain
     [ testGroup "Codingame"
         [   sourcePackagerTestGroup
-        ,   webServicesTestGroup
+        -- ,   webServicesTestGroup
         ]
     ]
+
+-- main = putStrLn "" >> exploreIO "../codingame-hs-test/src/Main.hs"
