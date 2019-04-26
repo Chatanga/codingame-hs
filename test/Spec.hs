@@ -52,7 +52,7 @@ webServicesTestGroup = testGroup "SourcePackager"
 testPlay = do
     let source = "main = putStrLn \"42\""
     credentials <- readCredentials "credentials.json"
-    result <- play credentials "Coders Strike Back" source [IdeCode, DefaultAi] Nothing
+    result <- playInIDE credentials (ChallengeTitle "Coders Strike Back") source [IdeCode, DefaultAi] Nothing
     case result of
         Left error -> assertFailure (show error)
         Right GameResult{} -> return ()
