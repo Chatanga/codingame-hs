@@ -30,26 +30,44 @@ module Codingame.WebServices
     , SessionError
     ) where
 
-import Control.Applicative
-import Control.Arrow
 import Control.Monad.State
+    ( evalStateT, MonadIO(liftIO), MonadState(put, get), StateT )
 import Control.Monad.Except
+    ( runExceptT,
+      MonadError(throwError, catchError),
+      ExceptT )
 import Data.Aeson
-import Data.Attoparsec.ByteString (parseOnly)
+    ( encode,
+      json,
+      (.:),
+      (.:?),
+      fromJSON,
+      object,
+      FromJSON(parseJSON),
+      Result(Success, Error),
+      Value(Number, Object, Null),
+      KeyValue((.=)),
+      ToJSON(toJSON) )
+import Data.Attoparsec.ByteString ( parseOnly )
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.ByteString as BS
-import Data.Char
-import Data.Function ((&))
+import Data.Function ( (&) )
 import qualified Data.List as List
-import Data.Maybe
-import Data.Ord
+import Data.Maybe ( listToMaybe )
+import Data.Ord ( comparing )
 import Network.HTTP.Client
-import Network.HTTP.Client.TLS
+    ( responseTimeoutMicro,
+      httpLbs,
+      newManager,
+      parseUrlThrow,
+      Request(method, requestBody, requestHeaders, responseTimeout),
+      RequestBody(RequestBodyLBS),
+      Response(responseHeaders, responseStatus, responseBody) )
+import Network.HTTP.Client.TLS ( tlsManagerSettings )
 import Network.HTTP.Types.Status (statusCode)
-import System.IO
+import System.IO ( stderr, hPutStrLn )
 import Text.Printf (printf)
 
-import Data.List
 import qualified Debug.Trace as Trace
 
 trace :: Show a => String -> a -> a
@@ -664,15 +682,15 @@ connectToChallenge
 
 connectToChallenge (Credentials email password) OngoingChallenge = do
     userId <- login_userId <$> wsLoginSiteV2 email password
-    
+
     challenge <- wsFindXNextVisibleChallenges 1 >>= (asMandatory "No ongoing challenge found" . listToMaybe)
     challenger <- wsFindChallengerByChallenge (challenge_publicId challenge) userId
-    
+
     return (userId, challenger_testSessionHandle challenger)
 
 connectToChallenge (Credentials email password) (ChallengeTitle challengeTitle) = do
     userId <- login_userId <$> wsLoginSiteV2 email password
-    
+
     -- There is surely a better request to get the challenge list (with their ID).
     progresses <- filter ((== "multi") . progress_level) <$> wsFindGamesPuzzleProgress (Just userId)
     let progress = listToMaybe $ filter ((== challengeTitle) . progress_title) progresses

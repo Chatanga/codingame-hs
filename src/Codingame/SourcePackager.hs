@@ -8,23 +8,42 @@ module Codingame.SourcePackager
     , createMonolithicSourceWithMode
     ) where
 
-import Control.Arrow
-import Control.Monad
-import Control.Monad.Trans.Except
-import Control.Exception
-import Data.ByteString.Char8 (ByteString, pack, unpack)
+import Control.Arrow ( Arrow((&&&)) )
+import Control.Monad ( foldM )
+import Control.Monad.Trans.Except ( runExcept )
+import Control.Exception ( tryJust )
+import Data.ByteString.Char8 (pack, unpack)
 import Data.Function ((&))
 import Hpp
-import Data.List
+    ( addDefinition,
+      emptyHppState,
+      expand,
+      preprocess,
+      HppOutput(HppOutput),
+      HppState )
+import Data.List ( nubBy )
 import qualified Data.Map.Lazy as Map
-import Data.Maybe (fromMaybe)
-import Data.Monoid ((<>))
-import Data.Ord
+import Data.Ord ( comparing )
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Language.Haskell.Exts
-import System.FilePath
-import System.IO.Error
+    ( defaultParseMode,
+      parseModuleWithMode,
+      prettyPrint,
+      ParseMode,
+      ParseResult(ParseFailed, ParseOk),
+      SrcLoc(srcFilename),
+      SrcSpanInfo,
+      Decl(PatBind, TypeSig, FunBind),
+      ImportDecl(importModule),
+      Match(InfixMatch, Match),
+      Module(Module),
+      ModuleHead(ModuleHead),
+      ModuleName(..),
+      Name(Ident),
+      Pat(PVar) )
+import System.FilePath ( (<.>), (</>), takeDirectory )
+import System.IO.Error ( isDoesNotExistError )
 
 ----------------------------------------------------------------------------------------------------
 

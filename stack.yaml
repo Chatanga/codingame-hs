@@ -1,4 +1,8 @@
-resolver: lts-11.19
+resolver: lts-16.21
 
 packages:
 - .
+
+extra-deps:
+- HTTP-4000.3.15
+- hpp-0.6.3
