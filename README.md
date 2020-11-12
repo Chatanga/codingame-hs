@@ -71,8 +71,8 @@ packages:
 
 A `stack build` will (re)build your project as well as the package.
 
-Version
--------
+Build environment
+-----------------
 
 At this time (november 2020), Codingame is still using GHC 8.4.3 (as stated in [the site’s FAQ](https://www.codingame.com/faq))
 which corresponds to a [Stackage](https://www.stackage.org/) LTS 12.14.
