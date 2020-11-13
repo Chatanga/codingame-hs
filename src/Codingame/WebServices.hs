@@ -31,7 +31,7 @@ module Codingame.WebServices
     ) where
 
 import Control.Monad.State
-    ( evalStateT, MonadIO(liftIO), MonadState(put, get), StateT )
+    ( gets, evalStateT, MonadIO(liftIO), MonadState(put), StateT )
 import Control.Monad.Except
     ( runExceptT,
       MonadError(throwError, catchError),
@@ -119,14 +119,14 @@ instance FromJSON (ServiceResult Login) where
         (v .:? "error")
 
 data Login = Login
-    { login_remembered :: Bool
-    , login_authenticated :: Bool
-    , login_user :: User
+    { login_user :: User
     , login_codinGamer :: Codingamer
     , login_languageId :: Int
     , login_userId :: Int
     , login_userEmail :: String
     , login_countryCode :: String
+    -- login_authenticated :: Bool
+    -- login_remembered :: Bool
     -- login_newFeatures :: [String]
     -- login_enabledNotifications :: [String]
     -- login_chatToken :: String
@@ -137,8 +137,8 @@ data Login = Login
 instance FromJSON Login where
     parseJSON (Object v) =
         Login <$>
-        (v .: "remembered") <*>
-        (v .: "authenticated") <*>
+        -- (v .: "remembered") <*>
+        -- (v .: "authenticated") <*>
         (v .: "user") <*>
         (v .: "codinGamer") <*>
         (v .: "languageId") <*>
@@ -153,7 +153,7 @@ data User = User
     { user_id :: Int
     , user_email :: String
     , user_languageId :: Int
-    , user_valid :: Bool
+    -- , user_valid :: Bool
     -- user_properties
     } deriving Show
 
@@ -162,8 +162,8 @@ instance FromJSON User where
         User <$>
         (v .: "id") <*>
         (v .: "email") <*>
-        (v .: "languageId") <*>
-        (v .: "valid")
+        (v .: "languageId")
+        -- (v .: "valid")
 
 data Codingamer = Codingamer
     { codingamer_userId :: Int
@@ -174,7 +174,7 @@ data Codingamer = Codingamer
     , codingamer_privateHandle :: Maybe String
     , codingamer_registerOrigin :: Maybe String
     , codingamer_enable :: Bool
-    , codingamer_userValid :: Bool
+    -- codingamer_userValid :: Bool
     , codingamer_schoolId :: Maybe Int
     , codingamer_rank :: Maybe Int
     , codingamer_avatar :: Maybe Int
@@ -201,7 +201,7 @@ instance FromJSON Codingamer where
         (v .:? "privateHandle") <*>
         (v .:? "registerLogin") <*>
         (v .: "enable") <*>
-        (v .: "userValid") <*>
+        -- (v .: "userValid") <*>
         (v .:? "schoolId") <*>
         (v .:? "rank") <*>
         (v .:? "avatar") <*>
@@ -225,7 +225,7 @@ instance ToJSON Codingamer where
             , "privateHandle" .= codingamer_privateHandle
             , "registerOrigin" .= codingamer_registerOrigin
             , "enable" .= codingamer_enable
-            , "userValid" .= codingamer_userValid
+            -- , "userValid" .= codingamer_userValid
             , "schoolId" .= codingamer_schoolId
             , "rank" .= codingamer_rank
             , "avatar" .= codingamer_avatar
@@ -692,8 +692,9 @@ connectToChallenge (Credentials email password) (ChallengeTitle challengeTitle) 
     userId <- login_userId <$> wsLoginSiteV2 email password
 
     -- There is surely a better request to get the challenge list (with their ID).
+    -- findProgressByIds?
     progresses <- filter ((== "multi") . progress_level) <$> wsFindGamesPuzzleProgress (Just userId)
-    let progress = listToMaybe $ filter ((== challengeTitle) . progress_title) progresses
+    let progress = List.find ((== challengeTitle) . progress_title) progresses
         error = printf "No challenge '%s' found in:\n%s" challengeTitle (show (map progress_title progresses))
     gameId <- progress_id <$> asMandatory error progress
 
@@ -740,6 +741,7 @@ wsLoginSiteV2 email password = handleResult $ post'
     "https://www.codingame.com/services/CodingamerRemoteService/loginSiteV2"
     [toJSON email, toJSON password, toJSON True]
 
+-- No more supported.
 wsFindGamesPuzzleProgress
     :: Maybe Int -- ^ User ID.
     -> Session [GamePuzzleProgress]
@@ -814,7 +816,7 @@ post' url parameters = post url (encode parameters)
 
 type Cookies = [(LBS.ByteString, LBS.ByteString)]
 
-data SessionState = SessionState
+newtype SessionState = SessionState
     { sessionState_cookies :: Cookies
     }
 
@@ -849,7 +851,7 @@ post
     -> LBS.ByteString -- ^ The request body as a JSON content.
     -> Session a -- ^ The returned session.
 post url body = do
-    cookies <- sessionState_cookies <$> get
+    cookies <- gets sessionState_cookies
     manager <- liftIO $ newManager tlsManagerSettings
     initialRequest <- liftIO $ parseUrlThrow url
     let request = initialRequest
@@ -861,7 +863,7 @@ post url body = do
                 ]
             }
     let thirtySeconds = 30000000
-    response <- liftIO $ httpLbs request{responseTimeout = responseTimeoutMicro thirtySeconds} manager
+    response <- liftIO $ httpLbs request{ responseTimeout = responseTimeoutMicro thirtySeconds } manager
     let cookies' = removeOlders (decodeSetCookies response ++ cookies)
         removeOlders = List.nubBy (\x y -> EQ == comparing fst x y)
     put (SessionState cookies')
@@ -880,14 +882,16 @@ decodeSetCookies response = response
     & map (head . LBS.split ';' . LBS.fromStrict . snd)
     & map (LBS.split '=')
     & map (\(k:v:_) -> (k, v))
-    & filter (flip elem ["JSESSIONID", "AWSELB"] . fst)
+    -- & filter (flip elem ["JSESSIONID", "AWSELB"] . fst)
+    -- Si les gens de Montpellier arrivent à faire du web, ça ne doit pas être bien compliqué…
+    & filter (flip elem ["AWSALBCORS", "AWSALB", "cgSession", "rememberMe"] . fst)
 
 parseResponse :: FromJSON a => Response LBS.ByteString -> Either String a
 parseResponse response =
     if statusCode (responseStatus response) == 200
         then case parseOnly json (LBS.toStrict $ responseBody response) of
-            Left identificationError -> Left identificationError
+            Left identificationError -> Left (trace "identificationError" identificationError)
             Right value -> case fromJSON value of
-                Error conversionError -> Left conversionError
+                Error conversionError -> Left (trace "conversionError" conversionError)
                 Success result -> Right result
         else Left (LBS.unpack $ responseBody response)
