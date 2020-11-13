@@ -125,36 +125,22 @@ data Login = Login
     , login_userId :: Int
     , login_userEmail :: String
     , login_countryCode :: String
-    -- login_authenticated :: Bool
-    -- login_remembered :: Bool
-    -- login_newFeatures :: [String]
-    -- login_enabledNotifications :: [String]
-    -- login_chatToken :: String
-    -- login_notificationConfig
-    -- login_actionTypes
     } deriving Show
 
 instance FromJSON Login where
     parseJSON (Object v) =
         Login <$>
-        -- (v .: "remembered") <*>
-        -- (v .: "authenticated") <*>
         (v .: "user") <*>
         (v .: "codinGamer") <*>
         (v .: "languageId") <*>
         (v .: "userId") <*>
         (v .: "userEmail") <*>
         (v .: "countryCode")
-        -- (v .: "newFeatures") <*>
-        -- (v .: "enabledNotifications") <*>
-        -- (v .: "chatToken")
 
 data User = User
     { user_id :: Int
     , user_email :: String
     , user_languageId :: Int
-    -- , user_valid :: Bool
-    -- user_properties
     } deriving Show
 
 instance FromJSON User where
@@ -174,7 +160,6 @@ data Codingamer = Codingamer
     , codingamer_privateHandle :: Maybe String
     , codingamer_registerOrigin :: Maybe String
     , codingamer_enable :: Bool
-    -- codingamer_userValid :: Bool
     , codingamer_schoolId :: Maybe Int
     , codingamer_rank :: Maybe Int
     , codingamer_avatar :: Maybe Int
@@ -186,8 +171,6 @@ data Codingamer = Codingamer
     , codingamer_tagline :: Maybe String
     , codingamer_level :: Maybe Int
     , codingamer_xp :: Maybe Int
-    -- codingamer_formValues
-    -- codingamer_formCachedValues
     } deriving Show
 
 instance FromJSON Codingamer where
@@ -201,7 +184,6 @@ instance FromJSON Codingamer where
         (v .:? "privateHandle") <*>
         (v .:? "registerLogin") <*>
         (v .: "enable") <*>
-        -- (v .: "userValid") <*>
         (v .:? "schoolId") <*>
         (v .:? "rank") <*>
         (v .:? "avatar") <*>
@@ -225,7 +207,6 @@ instance ToJSON Codingamer where
             , "privateHandle" .= codingamer_privateHandle
             , "registerOrigin" .= codingamer_registerOrigin
             , "enable" .= codingamer_enable
-            -- , "userValid" .= codingamer_userValid
             , "schoolId" .= codingamer_schoolId
             , "rank" .= codingamer_rank
             , "avatar" .= codingamer_avatar
@@ -251,19 +232,7 @@ data GamePuzzleProgress = GamePuzzleProgress
     { progress_id :: Int
     , progress_level :: String
     , progress_rank :: Maybe Int
-    -- progress_thumbnailBinaryId :: Maybe Int
-    -- progress_previewBinaryId :: Maybe Int
     , progress_title :: String
-    -- progress_achievementScore :: Int
-    -- progress_validatorScore :: Int
-    -- progress_achievementCount :: Int
-    -- progress_doneAchievementCount :: Int
-    -- progress_totalScore :: Int
-    -- progress_unlocked :: Bool
-    -- progress_solvedCount :: Int
-    -- progress_optimCriteriaId :: Maybe String
-    -- progress_creationTime :: Int
-    -- progress_topics
     } deriving Show
 
 instance FromJSON GamePuzzleProgress where
@@ -272,18 +241,7 @@ instance FromJSON GamePuzzleProgress where
         (v .: "id") <*>
         (v .: "level") <*>
         (v .:? "rank") <*>
-        -- (v .:? "thumbnailBinaryId") <*>
-        -- (v .:? "previewBinaryId") <*>
         (v .: "title")
-        -- (v .: "achievementScore") <*>
-        -- (v .: "validatorScore") <*>
-        -- (v .: "achievementCount") <*>
-        -- (v .: "doneAchievementCount") <*>
-        -- (v .: "totalScore") <*>
-        -- (v .: "unlocked") <*>
-        -- (v .: "solvedCount") <*>
-        -- (v .:? "optimCriteriaId") <*>
-        -- (v .: "creationTime")
 
 ----------------------------------------------------------------------------------------------------
 
@@ -333,7 +291,6 @@ data Challenger = Challenger
     , challenger_testSessionHandle :: String
     , challenger_challengeId :: Int
     , challenger_testsessionId :: Int
-    -- codingamer_formValues
     } deriving Show
 
 instance FromJSON Challenger where
@@ -475,32 +432,11 @@ instance ToJSON Frame where
 
 ----------------------------------------------------------------------------------------------------
 
-instance FromJSON (ServiceResult LastBattlesAndProgress) where
+instance FromJSON (ServiceResult [Battle]) where
     parseJSON (Object v) =
         ServiceResult <$>
         (v .:? "success") <*>
         (v .:? "error")
-
-data LastBattlesAndProgress = LastBattlesAndProgress
-    { lastBattlesAndProgress_lastBattles :: [Battle]
-    , lastBattlesAndProgress_progress :: Double
-    , lastBattlesAndProgress_viewer :: String
-    } deriving Show
-
-instance FromJSON LastBattlesAndProgress where
-    parseJSON (Object v) =
-        LastBattlesAndProgress <$>
-        (v .: "lastBattles") <*>
-        (v .: "progress") <*>
-        (v .: "viewer")
-
-instance ToJSON LastBattlesAndProgress where
-    toJSON LastBattlesAndProgress{..} =
-        object
-            [ "lastBattles" .= lastBattlesAndProgress_lastBattles
-            , "progress" .= lastBattlesAndProgress_progress
-            , "viewer" .= lastBattlesAndProgress_viewer
-            ]
 
 data Battle = Battle
     { battle_players :: [Player]
@@ -654,7 +590,7 @@ getLastBattles
     -> IO (Either SessionError [Battle]) -- ^ The error or the list of battles on success.
 getLastBattles credentials challenge = runSession $ dumpError $ do
     (userId, testSessionHandle) <- connectToChallenge credentials challenge
-    lastBattlesAndProgress_lastBattles <$> wsFindLastBattlesAndProgressByTestSessionHandle testSessionHandle
+    wsFindLastBattlesByTestSessionHandle testSessionHandle
 
 {- | Download a specific game result.
 -}
@@ -691,15 +627,17 @@ connectToChallenge (Credentials email password) OngoingChallenge = do
 connectToChallenge (Credentials email password) (ChallengeTitle challengeTitle) = do
     userId <- login_userId <$> wsLoginSiteV2 email password
 
-    -- There is surely a better request to get the challenge list (with their ID).
-    -- findProgressByIds?
-    progresses <- filter ((== "multi") . progress_level) <$> wsFindGamesPuzzleProgress (Just userId)
-    let progress = List.find ((== challengeTitle) . progress_title) progresses
-        error = printf "No challenge '%s' found in:\n%s" challengeTitle (show (map progress_title progresses))
-    gameId <- progress_id <$> asMandatory error progress
+    ongoingChallenge <- wsFindXNextVisibleChallenges 1 >>= (asMandatory "No ongoing challenge found" . listToMaybe)
+    pastChallenges <- wsFindPastChallenges (Just userId)
 
-    testSession <- wsGenerateSessionFromPuzzleIdV2 (Just userId) gameId
-    return (userId, testSession_handle testSession)
+    let challengePublicIds = map challenge_publicId (ongoingChallenge : pastChallenges)
+        error = printf "No challenge '%s' found in:\n%s" challengeTitle (show challengePublicIds)
+
+    challengeId <- asMandatory error (List.find (== challengeTitle) challengePublicIds)
+
+    challenger <- wsFindChallengerByChallenge challengeId userId
+
+    return (userId, challenger_testSessionHandle challenger)
 
 data Credentials = Credentials
     { credentials_email :: String
@@ -741,19 +679,12 @@ wsLoginSiteV2 email password = handleResult $ post'
     "https://www.codingame.com/services/CodingamerRemoteService/loginSiteV2"
     [toJSON email, toJSON password, toJSON True]
 
--- No more supported.
-wsFindGamesPuzzleProgress
-    :: Maybe Int -- ^ User ID.
-    -> Session [GamePuzzleProgress]
-wsFindGamesPuzzleProgress userId = handleResult $ post'
-    "https://www.codingame.com/services/PuzzleRemoteService/findGamesPuzzleProgress"
-    [toJSON userId]
-
 wsFindPastChallenges
-    :: Session [Challenge]
-wsFindPastChallenges = handleResult $ post'
+    :: Maybe Int -- ^ User ID.
+    -> Session [Challenge]
+wsFindPastChallenges userId = handleResult $ post'
     "https://www.codingame.com/services/ChallengeRemoteService/findPastChallenges"
-    []
+    [toJSON userId]
 
 wsFindByGameId
     :: Int -- ^ Replay ID.
@@ -792,7 +723,7 @@ wsSubmit
     -> Session Int
 wsSubmit testSessionHandle submit = handleResult $ post'
     "https://www.codingame.com/services/TestSessionRemoteService/submit"
-    [toJSON testSessionHandle, toJSON submit, Null] -- ^ Clarify the 3rd argument meaning.
+    [toJSON testSessionHandle, toJSON submit, Null] -- Clarify the 3rd argument meaning.
 
 wsPlay
     :: String -- ^ Test session handle.
@@ -802,12 +733,12 @@ wsPlay testSessionHandle play = handleResult $ post'
     "https://www.codingame.com/services/TestSessionRemoteService/play"
     [toJSON testSessionHandle, toJSON play]
 
-wsFindLastBattlesAndProgressByTestSessionHandle
+wsFindLastBattlesByTestSessionHandle
     :: String -- ^ Test session handle.
-    -> Session LastBattlesAndProgress
-wsFindLastBattlesAndProgressByTestSessionHandle testSessionHandle = handleResult $ post'
-    "https://www.codingame.com/services/gamesPlayersRankingRemoteService/findLastBattlesAndProgressByTestSessionHandle"
-    [toJSON testSessionHandle, Null]
+    -> Session [Battle]
+wsFindLastBattlesByTestSessionHandle testSessionHandle = handleResult $ post'
+    "https://www.codingame.com/services/gamesPlayersRankingRemoteService/findLastBattlesByTestSessionHandle"
+    [toJSON testSessionHandle, Null] -- Clarify the 3rd argument meaning.
 
 post' :: (Show a, FromJSON a) => String -> [Value] -> Session a
 post' url parameters = post url (encode parameters)
@@ -882,8 +813,6 @@ decodeSetCookies response = response
     & map (head . LBS.split ';' . LBS.fromStrict . snd)
     & map (LBS.split '=')
     & map (\(k:v:_) -> (k, v))
-    -- & filter (flip elem ["JSESSIONID", "AWSELB"] . fst)
-    -- Si les gens de Montpellier arrivent à faire du web, ça ne doit pas être bien compliqué…
     & filter (flip elem ["AWSALBCORS", "AWSALB", "cgSession", "rememberMe"] . fst)
 
 parseResponse :: FromJSON a => Response LBS.ByteString -> Either String a
