@@ -14,7 +14,8 @@ import Control.Monad.Trans.Except ( runExcept )
 import Control.Exception ( tryJust )
 import Data.ByteString.Char8 (pack, unpack)
 import Data.Function ((&))
-import Data.List (isPrefixOf, nubBy)
+import Data.List ( isPrefixOf, nubBy )
+import Data.Maybe ( mapMaybe )
 import Hpp
     ( addDefinition,
       emptyHppState,
@@ -30,7 +31,9 @@ import Language.Haskell.Exts
     ( defaultParseMode,
       parseModuleWithMode,
       prettyPrint,
-      ParseMode(..),
+      noSrcSpan,
+      Extension(EnableExtension),
+      ParseMode(extensions),
       ParseResult(ParseFailed, ParseOk),
       SrcLoc(srcFilename, srcLine),
       SrcSpanInfo,
@@ -40,6 +43,7 @@ import Language.Haskell.Exts
       Module(Module),
       ModuleHead(ModuleHead),
       ModuleName(..),
+      ModulePragma(LanguagePragma),
       Name(Ident),
       Pat(PVar) )
 import System.FilePath ( (<.>), (</>), takeDirectory )
@@ -96,9 +100,13 @@ createMonolithicSourceWithMode parseMode sourceFile = do
 
     let rewrittenModuleSourceMap = Map.map rewriteModule moduleSourceMap
 
+    -- TODO Weak…
+    let convertExtension (EnableExtension e) = Just $ LanguagePragma noSrcSpan [Ident noSrcSpan (show e)]
+        convertExtension _ = Nothing
+
     let contributions = fmap (getContribution moduleSourceMap) (Map.assocs moduleSourceMap)
         srcLoc = error "no srcLoc"
-        pragmas = []
+        pragmas = mapMaybe convertExtension (extensions parseMode)
         warningText = Nothing
         exportSpec = Nothing
         importDecls = mergeImportDecls (fmap fst contributions)
@@ -136,14 +144,14 @@ processInternalModule parseMode moduleSourceMap sourceFile = do
 
 parseModuleSource :: ParseMode -> ModuleSourceMap -> FilePath -> String -> IO ModuleSourceMap
 parseModuleSource parseMode moduleSourceMap sourceFile rawSource = do
-    -- HPP (which is not CPP) add its own directive in the output…
+    -- TODO HPP (which is not CPP) add its own directive in the output…
     let source = unlines (filter (not . isPrefixOf "#") (lines rawSource))
-    -- Extensions need to be provided by the user this way.
+    -- TODO Extensions need to be provided by the user this way.
     let moduleSource = case parseModuleWithMode parseMode source of
             ParseOk moduleSource
                 -> moduleSource
             ParseFailed srcLoc message
-                -- Line number is useless once cpp has been run on the source.
+                -- TODO Line number is useless once cpp has been run on the source.
                 -> error (message ++ "\nAt: " ++ show srcLoc{ srcFilename = sourceFile } ++ "\n" ++ dumpSource (srcLine srcLoc))
 
         dumpSource lineNumber =
