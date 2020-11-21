@@ -14,6 +14,7 @@ import Control.Monad.Trans.Except ( runExcept )
 import Control.Exception ( tryJust )
 import Data.ByteString.Char8 (pack, unpack)
 import Data.Function ((&))
+import Data.List (isPrefixOf, nubBy)
 import Hpp
     ( addDefinition,
       emptyHppState,
@@ -21,7 +22,6 @@ import Hpp
       preprocess,
       HppOutput(HppOutput),
       HppState )
-import Data.List ( nubBy )
 import qualified Data.Map.Lazy as Map
 import Data.Ord ( comparing )
 import qualified Data.Set as Set
@@ -30,9 +30,9 @@ import Language.Haskell.Exts
     ( defaultParseMode,
       parseModuleWithMode,
       prettyPrint,
-      ParseMode,
+      ParseMode(..),
       ParseResult(ParseFailed, ParseOk),
-      SrcLoc(srcFilename),
+      SrcLoc(srcFilename, srcLine),
       SrcSpanInfo,
       Decl(PatBind, TypeSig, FunBind),
       ImportDecl(importModule),
@@ -135,12 +135,21 @@ processInternalModule parseMode moduleSourceMap sourceFile = do
         Right moduleSourceMap' -> return moduleSourceMap'
 
 parseModuleSource :: ParseMode -> ModuleSourceMap -> FilePath -> String -> IO ModuleSourceMap
-parseModuleSource parseMode moduleSourceMap sourceFile source = do
+parseModuleSource parseMode moduleSourceMap sourceFile rawSource = do
+    -- HPP (which is not CPP) add its own directive in the output…
+    let source = unlines (filter (not . isPrefixOf "#") (lines rawSource))
+    -- Extensions need to be provided by the user this way.
     let moduleSource = case parseModuleWithMode parseMode source of
             ParseOk moduleSource
                 -> moduleSource
             ParseFailed srcLoc message
-                -> error (message ++ "\nAt: " ++ show srcLoc{ srcFilename = sourceFile })
+                -- Line number is useless once cpp has been run on the source.
+                -> error (message ++ "\nAt: " ++ show srcLoc{ srcFilename = sourceFile } ++ "\n" ++ dumpSource (srcLine srcLoc))
+
+        dumpSource lineNumber =
+            let radius = 5
+                start = max 1 (lineNumber - radius)
+            in  concat $ zipWith (\n line -> show n ++ "\t" ++ line ++ "\n") [start..] (take (radius * 2 + 1) . drop (start - 1) $ lines source)
 
         dependencies = getDependencies sourceFile moduleSource
 
