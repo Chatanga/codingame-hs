@@ -373,9 +373,9 @@ instance ToJSON GameResult where
 data Agent = Agent
     { agent_agentId :: Int
     , agent_index :: Int
-    , agent_codingamer :: Codingamer
-    , agent_score :: Double
-    , agent_valid :: Bool
+    , agent_codingamer :: Maybe Codingamer
+    , agent_score :: Maybe Double
+    , agent_valid :: Maybe Bool
     } deriving Show
 
 instance FromJSON Agent where
@@ -383,9 +383,9 @@ instance FromJSON Agent where
         Agent <$>
         (v .: "agentId") <*>
         (v .: "index") <*>
-        (v .: "codingamer") <*>
-        (v .: "score") <*>
-        (v .: "valid")
+        (v .:? "codingamer") <*>
+        (v .:? "score") <*>
+        (v .:? "valid")
 
 instance ToJSON Agent where
     toJSON Agent{..} =
