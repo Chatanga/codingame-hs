@@ -12,10 +12,9 @@ import Control.Arrow ( Arrow((&&&)) )
 import Control.Monad ( foldM )
 import Control.Monad.Trans.Except ( runExcept )
 import Control.Exception ( tryJust )
-import Data.ByteString.Char8 (pack, unpack)
-import Data.Function ((&))
-import Data.List ( isPrefixOf, nubBy )
-import Data.Maybe ( mapMaybe )
+import Data.ByteString.Char8 ( pack, unpack )
+import Data.Function ( (&) )
+import Data.List ( nub, nubBy )
 import Hpp
     ( addDefinition,
       emptyHppState,
@@ -23,17 +22,17 @@ import Hpp
       preprocess,
       HppOutput(HppOutput),
       HppState )
+import qualified Hpp.Config as C
+import qualified Hpp.Types as T
 import qualified Data.Map.Lazy as Map
 import Data.Ord ( comparing )
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Language.Haskell.Exts
     ( defaultParseMode,
+      getTopPragmas,
       parseModuleWithMode,
       prettyPrint,
-      noSrcSpan,
-      Extension(EnableExtension),
-      ParseMode(extensions),
+      ParseMode,
       ParseResult(ParseFailed, ParseOk),
       SrcLoc(srcFilename, srcLine),
       SrcSpanInfo,
@@ -43,7 +42,7 @@ import Language.Haskell.Exts
       Module(Module),
       ModuleHead(ModuleHead),
       ModuleName(..),
-      ModulePragma(LanguagePragma),
+      ModulePragma,
       Name(Ident),
       Pat(PVar) )
 import System.FilePath ( (<.>), (</>), takeDirectory )
@@ -51,7 +50,7 @@ import System.IO.Error ( isDoesNotExistError )
 
 ----------------------------------------------------------------------------------------------------
 
-type ModuleSourceMap = Map.Map FilePath (Module SrcSpanInfo)
+type ModuleSourceMap = Map.Map FilePath ([ModulePragma SrcSpanInfo], Module SrcSpanInfo)
 
 {- | Create a monolithic source by concatenating a Haskell source file and all its local
 dependencies.
@@ -98,30 +97,24 @@ createMonolithicSourceWithMode :: ParseMode -> FilePath -> IO String
 createMonolithicSourceWithMode parseMode sourceFile = do
     moduleSourceMap <- processModule parseMode Map.empty sourceFile
 
-    let rewrittenModuleSourceMap = Map.map rewriteModule moduleSourceMap
-
-    -- TODO Weak…
-    let convertExtension (EnableExtension e) = Just $ LanguagePragma noSrcSpan [Ident noSrcSpan (show e)]
-        convertExtension _ = Nothing
-
     let contributions = fmap (getContribution moduleSourceMap) (Map.assocs moduleSourceMap)
         srcLoc = error "no srcLoc"
-        pragmas = mapMaybe convertExtension (extensions parseMode)
-        warningText = Nothing
-        exportSpec = Nothing
-        importDecls = mergeImportDecls (fmap fst contributions)
-        decls = fmap patchRunMain (concatMap snd contributions)
-        -- moduleHead = Just (ModuleHead noSrcSpan (ModuleName noSrcSpan "MainTest") warningText exportSpec)
+        pragmas = mergePragmas (fmap fst contributions)
+        importDecls = mergeImportDecls (fmap (fst . snd) contributions)
+        decls = fmap patchRunMain (concatMap (snd . snd) contributions)
         moduleHead = Nothing
         mergedCode = Module srcLoc moduleHead pragmas importDecls decls
 
     return (prettyPrint mergedCode)
 
-getContribution :: ModuleSourceMap -> (FilePath, Module SrcSpanInfo) -> ([ImportDecl SrcSpanInfo], [Decl SrcSpanInfo])
-getContribution moduleSourceMap (sourceFile, moduleSource) = (getExternalImportDecls importDecls, decls)
+getContribution :: ModuleSourceMap
+    -> (FilePath, ([ModulePragma SrcSpanInfo], Module SrcSpanInfo))
+    -> ([ModulePragma SrcSpanInfo], ([ImportDecl SrcSpanInfo], [Decl SrcSpanInfo]))
+getContribution moduleSourceMap (sourceFile, moduleSource) =
+    (fst moduleSource, (getExternalImportDecls importDecls, decls))
     where
-        (Module _ (Just (ModuleHead _ moduleName _ _)) exportSpec importDecls decls) =
-            moduleSource
+        (Module _ (Just (ModuleHead _ moduleName _ _)) _ importDecls decls) =
+            snd moduleSource
         srcDir = getSrcDir sourceFile (getModuleName moduleName)
         getExternalImportDecls importDecls = importDecls
             & fmap (id &&& (locateImport srcDir . getModuleName . importModule))
@@ -143,11 +136,13 @@ processInternalModule parseMode moduleSourceMap sourceFile = do
         Right moduleSourceMap' -> return moduleSourceMap'
 
 parseModuleSource :: ParseMode -> ModuleSourceMap -> FilePath -> String -> IO ModuleSourceMap
-parseModuleSource parseMode moduleSourceMap sourceFile rawSource = do
-    -- TODO HPP (which is not CPP) add its own directive in the output…
-    let source = unlines (filter (not . isPrefixOf "#") (lines rawSource))
-    -- TODO Extensions need to be provided by the user this way.
-    let moduleSource = case parseModuleWithMode parseMode source of
+parseModuleSource parseMode moduleSourceMap sourceFile source = do
+    let pragmas = case getTopPragmas source of
+            ParseOk pragmas
+                -> pragmas
+            ParseFailed srcLoc message
+                -> error (message ++ "\nAt: " ++ show srcLoc{ srcFilename = sourceFile } ++ "\n" ++ dumpSource (srcLine srcLoc))
+        moduleSource = case parseModuleWithMode parseMode source of
             ParseOk moduleSource
                 -> moduleSource
             ParseFailed srcLoc message
@@ -167,7 +162,7 @@ parseModuleSource parseMode moduleSourceMap sourceFile rawSource = do
     moduleSourceMap'' <-
         foldM (processInternalModule parseMode) moduleSourceMap' (fmap snd dependencies)
 
-    return $ Map.insert sourceFile moduleSource moduleSourceMap''
+    return $ Map.insert sourceFile (pragmas, moduleSource) moduleSourceMap''
 
 getDependencies :: FilePath -> Module SrcSpanInfo -> [(ImportDecl SrcSpanInfo, FilePath)]
 getDependencies sourceFile moduleSource = fmap (id &&& getLocation) importDecls
@@ -190,18 +185,15 @@ locateImport srcDir importedModuleName = importedSourceFile where
         & (init &&& last)
     importedSourceFile = foldl (</>) srcDir parents </> child <.> ".hs"
 
+mergePragmas :: [[ModulePragma SrcSpanInfo]] -> [ModulePragma SrcSpanInfo]
+mergePragmas allPragmas = nub $ concat allPragmas
+
 mergeImportDecls :: [[ImportDecl SrcSpanInfo]] -> [ImportDecl SrcSpanInfo]
 mergeImportDecls decls =
     nubBy (\d1 d2 -> (EQ == ) $ comparing (getModuleName . importModule) d1 d2) (concat decls)
 
 getModuleName :: ModuleName SrcSpanInfo -> String
 getModuleName (ModuleName _ moduleName) = moduleName
-
-rewriteModule :: Module SrcSpanInfo -> Module SrcSpanInfo
-rewriteModule moduleSource = moduleSource
-
-findUsageFromMain :: ModuleSourceMap -> Set.Set (Decl SrcSpanInfo)
-findUsageFromMain = undefined
 
 patchRunMain :: Decl SrcSpanInfo -> Decl SrcSpanInfo
 patchRunMain decl = case decl of
@@ -221,14 +213,18 @@ patchRunMain decl = case decl of
         patchPat (PVar srcLoc name) = PVar srcLoc (patchName name)
         patchPat pat = pat
 
+hppConfig :: HppState -> HppState
+hppConfig = T.over T.config opts
+  where opts = T.setL C.inhibitLinemarkersL True
+
 readAndPreProcessFile :: FilePath -> IO String
-readAndPreProcessFile filePath = do
-    case addDefinition "CG_ARENA" "1" emptyHppState of
-        Just state -> readFile filePath >>= hpp state
+readAndPreProcessFile filePath =
+    case addDefinition "CG_ARENA" "1" (hppConfig emptyHppState) of
+        Just state -> readFile filePath >>= hpp (hppConfig state)
         Nothing -> error "Preprocessor definition did not parse"
 
 hpp :: HppState -> String -> IO String
 hpp st src =
-  case runExcept (expand st (preprocess (map pack (lines src)))) of
-    Left e -> error ("Error running hpp: " ++ show e)
-    Right (HppOutput _ ls, _) -> return (unlines (map unpack ls))
+    case runExcept (expand st (preprocess (map pack (lines src)))) of
+        Left e -> error ("Error running hpp: " ++ show e)
+        Right (HppOutput _ ls, _) -> return (unlines (map unpack ls))

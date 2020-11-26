@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase, RecordWildCards #-}
+
 module Beta
     ( beta
     ) where
