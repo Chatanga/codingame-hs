@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE LambdaCase, RecordWildCards #-}
 
 module Beta
@@ -7,5 +8,5 @@ module Beta
 import Delta.Epsilon
 import Delta.Zeta
 
-beta = putStrLn "beta"
+beta (!x, !y) = putStrLn $ "beta" ++ show x ++ show y
 

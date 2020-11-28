@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, LambdaCase #-}
 
 {-|
 A small module to create monolithic sources from multiples files.
@@ -32,7 +32,9 @@ import Language.Haskell.Exts
       getTopPragmas,
       parseModuleWithMode,
       prettyPrint,
-      ParseMode,
+      Extension(EnableExtension),
+      KnownExtension(..),
+      ParseMode(extensions),
       ParseResult(ParseFailed, ParseOk),
       SrcLoc(srcFilename, srcLine),
       SrcSpanInfo,
@@ -42,7 +44,7 @@ import Language.Haskell.Exts
       Module(Module),
       ModuleHead(ModuleHead),
       ModuleName(..),
-      ModulePragma,
+      ModulePragma(LanguagePragma),
       Name(Ident),
       Pat(PVar) )
 import System.FilePath ( (<.>), (</>), takeDirectory )
@@ -142,13 +144,16 @@ parseModuleSource parseMode moduleSourceMap sourceFile source = do
                 -> pragmas
             ParseFailed srcLoc message
                 -> error (message ++ "\nAt: " ++ show srcLoc{ srcFilename = sourceFile } ++ "\n" ++ dumpSource (srcLine srcLoc))
-        moduleSource = case parseModuleWithMode parseMode source of
+        enabledLanguageExtensions = flip concatMap pragmas $ \case
+            LanguagePragma _ names -> map toExtension names
+            _ -> []
+        moduleSource = case parseModuleWithMode parseMode{ extensions = enabledLanguageExtensions } source of
             ParseOk moduleSource
                 -> moduleSource
             ParseFailed srcLoc message
-                -- TODO Line number is useless once cpp has been run on the source.
                 -> error (message ++ "\nAt: " ++ show srcLoc{ srcFilename = sourceFile } ++ "\n" ++ dumpSource (srcLine srcLoc))
 
+        -- TOREDO To work around the fact that SrcLoc becomes useless once HPP has been run on the source.
         dumpSource lineNumber =
             let radius = 5
                 start = max 1 (lineNumber - radius)
@@ -163,6 +168,117 @@ parseModuleSource parseMode moduleSourceMap sourceFile source = do
         foldM (processInternalModule parseMode) moduleSourceMap' (fmap snd dependencies)
 
     return $ Map.insert sourceFile (pragmas, moduleSource) moduleSourceMap''
+
+-- TOREDO I really don’t like this.
+toExtension :: Name SrcSpanInfo -> Extension
+toExtension (Ident _ "OverlappingInstances") = EnableExtension OverlappingInstances
+toExtension (Ident _ "UndecidableInstances") = EnableExtension UndecidableInstances
+toExtension (Ident _ "IncoherentInstances") = EnableExtension IncoherentInstances
+toExtension (Ident _ "InstanceSigs") = EnableExtension InstanceSigs
+toExtension (Ident _ "DoRec") = EnableExtension DoRec
+toExtension (Ident _ "RecursiveDo") = EnableExtension RecursiveDo
+toExtension (Ident _ "ParallelListComp") = EnableExtension ParallelListComp
+toExtension (Ident _ "MultiParamTypeClasses") = EnableExtension MultiParamTypeClasses
+toExtension (Ident _ "MonomorphismRestriction") = EnableExtension MonomorphismRestriction
+toExtension (Ident _ "FunctionalDependencies") = EnableExtension FunctionalDependencies
+toExtension (Ident _ "Rank2Types") = EnableExtension Rank2Types
+toExtension (Ident _ "RankNTypes") = EnableExtension RankNTypes
+toExtension (Ident _ "PolymorphicComponents") = EnableExtension PolymorphicComponents
+toExtension (Ident _ "ExistentialQuantification") = EnableExtension ExistentialQuantification
+toExtension (Ident _ "ScopedTypeVariables") = EnableExtension ScopedTypeVariables
+toExtension (Ident _ "PatternSignatures") = EnableExtension PatternSignatures
+toExtension (Ident _ "ImplicitParams") = EnableExtension ImplicitParams
+toExtension (Ident _ "FlexibleContexts") = EnableExtension FlexibleContexts
+toExtension (Ident _ "FlexibleInstances") = EnableExtension FlexibleInstances
+toExtension (Ident _ "EmptyDataDecls") = EnableExtension EmptyDataDecls
+toExtension (Ident _ "CPP") = EnableExtension CPP
+toExtension (Ident _ "KindSignatures") = EnableExtension KindSignatures
+toExtension (Ident _ "BangPatterns") = EnableExtension BangPatterns
+toExtension (Ident _ "TypeSynonymInstances") = EnableExtension TypeSynonymInstances
+toExtension (Ident _ "TemplateHaskell") = EnableExtension TemplateHaskell
+toExtension (Ident _ "ForeignFunctionInterface") = EnableExtension ForeignFunctionInterface
+toExtension (Ident _ "Arrows") = EnableExtension Arrows
+toExtension (Ident _ "Generics") = EnableExtension Generics
+toExtension (Ident _ "ImplicitPrelude") = EnableExtension ImplicitPrelude
+toExtension (Ident _ "NamedFieldPuns") = EnableExtension NamedFieldPuns
+toExtension (Ident _ "PatternGuards") = EnableExtension PatternGuards
+toExtension (Ident _ "GeneralizedNewtypeDeriving") = EnableExtension GeneralizedNewtypeDeriving
+toExtension (Ident _ "DeriveAnyClass") = EnableExtension DeriveAnyClass
+toExtension (Ident _ "ExtensibleRecords") = EnableExtension ExtensibleRecords
+toExtension (Ident _ "RestrictedTypeSynonyms") = EnableExtension RestrictedTypeSynonyms
+toExtension (Ident _ "HereDocuments") = EnableExtension HereDocuments
+toExtension (Ident _ "MagicHash") = EnableExtension MagicHash
+toExtension (Ident _ "BinaryLiterals") = EnableExtension BinaryLiterals
+toExtension (Ident _ "TypeFamilies") = EnableExtension TypeFamilies
+toExtension (Ident _ "StandaloneDeriving") = EnableExtension StandaloneDeriving
+toExtension (Ident _ "UnicodeSyntax") = EnableExtension UnicodeSyntax
+toExtension (Ident _ "UnliftedFFITypes") = EnableExtension UnliftedFFITypes
+toExtension (Ident _ "LiberalTypeSynonyms") = EnableExtension LiberalTypeSynonyms
+toExtension (Ident _ "TypeOperators") = EnableExtension TypeOperators
+toExtension (Ident _ "ParallelArrays") = EnableExtension ParallelArrays
+toExtension (Ident _ "RecordWildCards") = EnableExtension RecordWildCards
+toExtension (Ident _ "RecordPuns") = EnableExtension RecordPuns
+toExtension (Ident _ "DisambiguateRecordFields") = EnableExtension DisambiguateRecordFields
+toExtension (Ident _ "OverloadedStrings") = EnableExtension OverloadedStrings
+toExtension (Ident _ "GADTs") = EnableExtension GADTs
+toExtension (Ident _ "MonoPatBinds") = EnableExtension MonoPatBinds
+toExtension (Ident _ "RelaxedPolyRec") = EnableExtension RelaxedPolyRec
+toExtension (Ident _ "ExtendedDefaultRules") = EnableExtension ExtendedDefaultRules
+toExtension (Ident _ "UnboxedTuples") = EnableExtension UnboxedTuples
+toExtension (Ident _ "DeriveDataTypeable") = EnableExtension DeriveDataTypeable
+toExtension (Ident _ "ConstrainedClassMethods") = EnableExtension ConstrainedClassMethods
+toExtension (Ident _ "PackageImports") = EnableExtension PackageImports
+toExtension (Ident _ "LambdaCase") = EnableExtension LambdaCase
+toExtension (Ident _ "EmptyCase") = EnableExtension EmptyCase
+toExtension (Ident _ "ImpredicativeTypes") = EnableExtension ImpredicativeTypes
+toExtension (Ident _ "NewQualifiedOperators") = EnableExtension NewQualifiedOperators
+toExtension (Ident _ "PostfixOperators") = EnableExtension PostfixOperators
+toExtension (Ident _ "QuasiQuotes") = EnableExtension QuasiQuotes
+toExtension (Ident _ "TransformListComp") = EnableExtension TransformListComp
+toExtension (Ident _ "ViewPatterns") = EnableExtension ViewPatterns
+toExtension (Ident _ "XmlSyntax") = EnableExtension XmlSyntax
+toExtension (Ident _ "RegularPatterns") = EnableExtension RegularPatterns
+toExtension (Ident _ "TupleSections") = EnableExtension TupleSections
+toExtension (Ident _ "GHCForeignImportPrim") = EnableExtension GHCForeignImportPrim
+toExtension (Ident _ "NPlusKPatterns") = EnableExtension NPlusKPatterns
+toExtension (Ident _ "DoAndIfThenElse") = EnableExtension DoAndIfThenElse
+toExtension (Ident _ "RebindableSyntax") = EnableExtension RebindableSyntax
+toExtension (Ident _ "ExplicitForAll") = EnableExtension ExplicitForAll
+toExtension (Ident _ "DatatypeContexts") = EnableExtension DatatypeContexts
+toExtension (Ident _ "MonoLocalBinds") = EnableExtension MonoLocalBinds
+toExtension (Ident _ "DeriveFunctor") = EnableExtension DeriveFunctor
+toExtension (Ident _ "DeriveGeneric") = EnableExtension DeriveGeneric
+toExtension (Ident _ "DeriveTraversable") = EnableExtension DeriveTraversable
+toExtension (Ident _ "DeriveFoldable") = EnableExtension DeriveFoldable
+toExtension (Ident _ "NondecreasingIndentation") = EnableExtension NondecreasingIndentation
+toExtension (Ident _ "InterruptibleFFI") = EnableExtension InterruptibleFFI
+toExtension (Ident _ "CApiFFI") = EnableExtension CApiFFI
+toExtension (Ident _ "JavaScriptFFI") = EnableExtension JavaScriptFFI
+toExtension (Ident _ "ExplicitNamespaces") = EnableExtension ExplicitNamespaces
+toExtension (Ident _ "DataKinds") = EnableExtension DataKinds
+toExtension (Ident _ "PolyKinds") = EnableExtension PolyKinds
+toExtension (Ident _ "MultiWayIf") = EnableExtension MultiWayIf
+toExtension (Ident _ "SafeImports") = EnableExtension SafeImports
+toExtension (Ident _ "Safe") = EnableExtension Safe
+toExtension (Ident _ "Trustworthy") = EnableExtension Trustworthy
+toExtension (Ident _ "DefaultSignatures") = EnableExtension DefaultSignatures
+toExtension (Ident _ "ConstraintKinds") = EnableExtension ConstraintKinds
+toExtension (Ident _ "RoleAnnotations") = EnableExtension RoleAnnotations
+toExtension (Ident _ "PatternSynonyms") = EnableExtension PatternSynonyms
+toExtension (Ident _ "PartialTypeSignatures") = EnableExtension PartialTypeSignatures
+toExtension (Ident _ "NamedWildCards") = EnableExtension NamedWildCards
+toExtension (Ident _ "TypeApplications") = EnableExtension TypeApplications
+toExtension (Ident _ "TypeFamilyDependencies") = EnableExtension TypeFamilyDependencies
+toExtension (Ident _ "OverloadedLabels") = EnableExtension OverloadedLabels
+toExtension (Ident _ "DerivingStrategies") = EnableExtension DerivingStrategies
+toExtension (Ident _ "UnboxedSums") = EnableExtension UnboxedSums
+toExtension (Ident _ "TypeInType") = EnableExtension TypeInType
+toExtension (Ident _ "Strict") = EnableExtension Strict
+toExtension (Ident _ "StrictData") = EnableExtension StrictData
+toExtension (Ident _ "DerivingVia") = EnableExtension DerivingVia
+toExtension (Ident _ "QuantifiedConstraints") = EnableExtension QuantifiedConstraints
+toExtension (Ident _ "BlockArguments") = EnableExtension BlockArguments
+toExtension name = error $ "Unknown extension: " ++ show name
 
 getDependencies :: FilePath -> Module SrcSpanInfo -> [(ImportDecl SrcSpanInfo, FilePath)]
 getDependencies sourceFile moduleSource = fmap (id &&& getLocation) importDecls
