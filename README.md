@@ -43,7 +43,7 @@ Known limitations
 
 -   Although the module parses the sources provided to it to create a monolithic output, it won't be
     able to solve any name clash between functions, nor handle incompatible qualified and/or hidden
-    import directives.
+    import directives (so don’t use qualified or any fancy import directives in your local modules).
 
 **WebServices**
 

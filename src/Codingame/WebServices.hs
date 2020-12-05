@@ -25,7 +25,7 @@ module Codingame.WebServices
     , AgentId (..)
     , Player (..)
     , Battle (..)
-    , ChallengeTitle (..)
+    , ChallengeSelector (..)
     , Credentials (..)
     , SessionError
     ) where
@@ -65,13 +65,12 @@ import Network.HTTP.Client
       Response(responseHeaders, responseStatus, responseBody) )
 import Network.HTTP.Client.TLS ( tlsManagerSettings )
 import Network.HTTP.Types.Status (statusCode)
-import System.IO ( stderr, hPutStrLn )
 import Text.Printf (printf)
 
 import qualified Debug.Trace as Trace
 
 trace :: Show a => String -> a -> a
-trace message x = Trace.trace (message ++ " = " ++ show x) x
+trace message x = x -- Trace.trace (message ++ " = " ++ show x) x
 
 {-
 Implementation note: instances of the ToJSON and FromJSON classes could be automatically generated
@@ -149,7 +148,6 @@ instance FromJSON User where
         (v .: "id") <*>
         (v .: "email") <*>
         (v .: "languageId")
-        -- (v .: "valid")
 
 data Codingamer = Codingamer
     { codingamer_userId :: Int
@@ -256,7 +254,7 @@ data Challenge = Challenge
     , challenge_date :: Int
     , challenge_publicId :: String
     , challenge_cover1Id :: Maybe Int
-    , challenge_logoId :: Int
+    , challenge_logoId :: Maybe Int
     , challenge_descriptionJson :: Maybe String
     , challenge_endApplicationsDate :: Maybe Int
     , challenge_applicationsClosed :: Maybe Bool
@@ -269,7 +267,7 @@ instance FromJSON Challenge where
         (v .: "date") <*>
         (v .: "publicId") <*>
         (v .:? "coverId") <*>
-        (v .: "logoId") <*>
+        (v .:? "logoId") <*>
         (v .:? "descriptionJson") <*>
         (v .:? "endApplicationsDate") <*>
         (v .:? "applicationsClosed")
@@ -499,8 +497,8 @@ instance FromJSON (ServiceResult TestSession) where
 
 data TestSession = TestSession
     { testSession_reportReady :: Bool
-    , testSession_questionCount :: Int
-    , testSession_globalRemainingTime :: Int
+    , testSession_questionCount :: Maybe Int
+    , testSession_globalRemainingTime :: Maybe Int
     , testSession_handle :: String
     , testSession_direct :: Bool
     } deriving Show
@@ -509,8 +507,8 @@ instance FromJSON TestSession where
     parseJSON (Object v) =
         TestSession <$>
         (v .: "reportReady") <*>
-        (v .: "questionCount") <*>
-        (v .: "globalRemainingTime") <*>
+        (v .:? "questionCount") <*>
+        (v .:? "globalRemainingTime") <*>
         (v .: "handle") <*>
         (v .: "direct")
 
@@ -551,7 +549,10 @@ instance ToJSON AgentId where
 
 ----------------------------------------------------------------------------------------------------
 
-data ChallengeTitle = OngoingChallenge | ChallengeTitle String deriving Show
+{- | Do not try to connect to an ongoing challenge as it was a past challenge. The underlying
+request is not the same and it won't work.
+-}
+data ChallengeSelector = OngoingChallenge | PastChallengeTitle String deriving Show
 
 {- | Submit a Haskell source for a given multiplayers challenge. The published source is pushed
 into the multiplayers arena and also made available in the IDE (after having refreshed the page
@@ -559,26 +560,26 @@ if needed).
 -}
 submitToArena
     :: Credentials -- ^ A user credentials.
-    -> ChallengeTitle -- ^ The challenge title.
+    -> ChallengeSelector -- ^ The ongoing challenge or a past challenge title.
     -> String -- ^ The source to submit.
     -> IO (Either SessionError Int) -- ^ The error or the submitted agent ID on success.
 submitToArena credentials challenge source = runSession $ dumpError $ do
-    (userId, testSessionHandle) <- connectToChallenge credentials challenge
+    (_, testSessionHandle) <- connectToChallenge credentials challenge
     wsSubmit testSessionHandle (Submit source "Haskell")
 
-{- | Upload a Haskell source into the IDE and play a single game between multiple agents. Any of these
-agent could use the uploaded source, but it is not mandatory. However, even if not used, a source
-shall be provided (I don’t know why CG has bound together these two operations).
+{- | Upload a Haskell source into the IDE and play a single game between multiple agents. Any of
+these agent could use the uploaded source, but it is not mandatory. However, even if not used, a
+source shall be provided (I don’t know why CG has bound together these two operations).
 -}
 playInIDE
     :: Credentials -- ^ A user credentials.
-    -> ChallengeTitle -- ^ The challenge title.
+    -> ChallengeSelector -- ^ The ongoing challenge or a past challenge title.
     -> String -- ^ The source to submit (even if not used).
     -> [AgentId] -- ^ The agents for the game.
     -> Maybe String -- ^ Optional game options (including the random seed).
     -> IO (Either SessionError GameResult) -- ^ The error or the game result on success.
 playInIDE credentials challenge source agents gameOptions = runSession $ dumpError $ do
-    (userId, testSessionHandle) <- connectToChallenge credentials challenge
+    (_, testSessionHandle) <- connectToChallenge credentials challenge
     wsPlay testSessionHandle (Play source "Haskell" (Multi agents gameOptions))
 
 {- | Retrieve the last battles (how many by the way?) waged by the player's bot in the arena.
@@ -586,17 +587,17 @@ Note that some of these battles could be still in progress.
 -}
 getLastBattles
     :: Credentials -- ^ A user credentials.
-    -> ChallengeTitle -- ^ The challenge title.
+    -> ChallengeSelector -- ^ The ongoing challenge or a past challenge title.
     -> IO (Either SessionError [Battle]) -- ^ The error or the list of battles on success.
 getLastBattles credentials challenge = runSession $ dumpError $ do
-    (userId, testSessionHandle) <- connectToChallenge credentials challenge
+    (_, testSessionHandle) <- connectToChallenge credentials challenge
     wsFindLastBattlesByTestSessionHandle testSessionHandle
 
 {- | Download a specific game result.
 -}
 getGameResult
     :: Credentials -- ^ A user credentials.
-    -> ChallengeTitle -- ^ The challenge title.
+    -> ChallengeSelector -- ^ The ongoing challenge or a past challenge title.
     -> Int -- ^ The game ID.
     -> IO (Either SessionError GameResult) -- ^ The error or the game result on success.
 getGameResult credentials challenge gameId = runSession $ dumpError $ do
@@ -609,13 +610,14 @@ getGameResult credentials challenge gameId = runSession $ dumpError $ do
     Maybe it is just a way to ask for the stderr of all my agents, whereas leaving it at
     null means it’s accessed as a public result without the need of being authenticated?
     -}
-    wsFindByGameId gameId (Just userId)
+    wsFindByGameId gameId userId
 
 connectToChallenge
     :: Credentials -- ^ A user credentials.
-    -> ChallengeTitle -- ^ The challenge title.
+    -> ChallengeSelector -- ^ The ongoing challenge or a past challenge title.
     -> Session (Int, String) -- ^ The error or the (user ID, test session handle) on success.
 
+-- Ongoing challenge is implied.
 connectToChallenge (Credentials email password) OngoingChallenge = do
     userId <- login_userId <$> wsLoginSiteV2 email password
 
@@ -624,20 +626,19 @@ connectToChallenge (Credentials email password) OngoingChallenge = do
 
     return (userId, challenger_testSessionHandle challenger)
 
-connectToChallenge (Credentials email password) (ChallengeTitle challengeTitle) = do
+-- Past challenge is implied.
+connectToChallenge (Credentials email password) (PastChallengeTitle title) = do
     userId <- login_userId <$> wsLoginSiteV2 email password
 
-    ongoingChallenge <- wsFindXNextVisibleChallenges 1 >>= (asMandatory "No ongoing challenge found" . listToMaybe)
-    pastChallenges <- wsFindPastChallenges (Just userId)
+    pastChallenges <- wsFindPastChallenges userId
 
-    let challengePublicIds = map challenge_publicId (ongoingChallenge : pastChallenges)
-        error = printf "No challenge '%s' found in:\n%s" challengeTitle (show challengePublicIds)
+    let challengePublicIds = map challenge_publicId pastChallenges
+        error = printf "No challenge '%s' found in:\n%s." title (List.intercalate ", " challengePublicIds)
 
-    challengeId <- asMandatory error (List.find (== challengeTitle) challengePublicIds)
+    challengeId <- asMandatory error (List.find (== title) challengePublicIds)
+    testSession <- wsGenerateSessionFromPuzzlePrettyId userId challengeId
 
-    challenger <- wsFindChallengerByChallenge challengeId userId
-
-    return (userId, challenger_testSessionHandle challenger)
+    return (userId, testSession_handle testSession)
 
 data Credentials = Credentials
     { credentials_email :: String
@@ -680,7 +681,7 @@ wsLoginSiteV2 email password = handleResult $ post'
     [toJSON email, toJSON password, toJSON True]
 
 wsFindPastChallenges
-    :: Maybe Int -- ^ User ID.
+    :: Int -- ^ User ID.
     -> Session [Challenge]
 wsFindPastChallenges userId = handleResult $ post'
     "https://www.codingame.com/services/ChallengeRemoteService/findPastChallenges"
@@ -688,19 +689,27 @@ wsFindPastChallenges userId = handleResult $ post'
 
 wsFindByGameId
     :: Int -- ^ Replay ID.
-    -> Maybe Int -- ^ User ID.
+    -> Int -- ^ User ID.
     -> Session GameResult
 wsFindByGameId replayId userId = handleResult $ post'
     "https://www.codingame.com/services/gameResultRemoteService/findByGameId"
     [toJSON replayId, toJSON userId]
 
 wsGenerateSessionFromPuzzleIdV2
-    :: Maybe Int -- ^ User ID.
+    :: Int -- ^ User ID.
     -> Int -- ^ Game ID.
     -> Session TestSession
 wsGenerateSessionFromPuzzleIdV2 userId gameId = handleResult $ post'
     "https://www.codingame.com/services/PuzzleRemoteService/generateSessionFromPuzzleIdV2"
     [toJSON userId, toJSON gameId]
+
+wsGenerateSessionFromPuzzlePrettyId
+    :: Int -- ^ User ID.
+    -> String -- ^ Game name.
+    -> Session TestSession
+wsGenerateSessionFromPuzzlePrettyId userId gamePrettyId = handleResult $ post'
+    "https://www.codingame.com/services/PuzzleRemoteService/generateSessionFromPuzzlePrettyId"
+    [toJSON userId, toJSON gamePrettyId, toJSON False]
 
 wsFindXNextVisibleChallenges
     :: Int -- An index I guess (starting at 1)
@@ -760,7 +769,7 @@ runSession session = runExceptT (evalStateT session (SessionState []))
 
 dumpError :: Session a -> Session a
 dumpError session = catchError session $ \e -> do
-    liftIO $ hPutStrLn stderr e
+    -- liftIO $ hPutStrLn stderr e
     throwError e
 
 ----------------------------------------------------------------------------------------------------
@@ -784,7 +793,7 @@ post
 post url body = do
     cookies <- gets sessionState_cookies
     manager <- liftIO $ newManager tlsManagerSettings
-    initialRequest <- liftIO $ parseUrlThrow url
+    initialRequest <- liftIO $ parseUrlThrow (trace "url" url)
     let request = initialRequest
             { method = "POST"
             , requestBody = RequestBodyLBS body
