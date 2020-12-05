@@ -19,8 +19,8 @@ main = do
         source <- createMonolithicSource "src/Player.hs"
         credentials <- readCredentials "credentials.json"
 
-        -- To play a specific past challenge (using its name, not its ID).
-        playInIDE credentials (ChallengeTitle "Coders Strike Back") source [IdeCode, DefaultAi] Nothing
+        -- To play a specific past challenge (using its ID, not its name).
+        playInIDE credentials (PastChallengeTitle "coders-strike-back") source [IdeCode, DefaultAi] Nothing
 
         -- To play any ongoing challenge (if any).
         playInIDE credentials OngoingChallenge source [IdeCode, DefaultAi, DefaultAi, DefaultAi] Nothing
