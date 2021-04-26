@@ -776,13 +776,17 @@ dumpError session = catchError session $ \e -> do
 
 -- | Every response carries a success or a (logical) error. This function extract the first or
 -- transform the latter into an error.
-handleResult :: Show a => Session (ServiceResult a) -> Session a
-handleResult session = do
+handleResultOld :: Show a => Session (ServiceResult a) -> Session a
+handleResultOld session = do
     result <- session
     case result of
         (ServiceResult Nothing (Just error)) -> throwError (error_message error)
         (ServiceResult (Just success) Nothing) -> return success
         (ServiceResult Nothing Nothing) -> throwError "Nothing returned"
+
+-- | No more error?
+handleResult :: Show a => Session a -> Session a
+handleResult session = session
 
 -- | Do a POST request, updating the session cookies along the way.
 post

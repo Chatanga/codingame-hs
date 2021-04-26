@@ -1,2 +1,4 @@
-.stack-work/
-codingame-hs.cabal
+/.stack-work/
+/codingame-hs.cabal
+/codingame-hs-*.tar.gz
+/hie.yaml

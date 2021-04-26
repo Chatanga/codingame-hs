@@ -302,10 +302,11 @@ locateImport srcDir importedModuleName = importedSourceFile where
     importedSourceFile = foldl (</>) srcDir parents </> child <.> ".hs"
 
 mergePragmas :: [[ModulePragma SrcSpanInfo]] -> [ModulePragma SrcSpanInfo]
-mergePragmas allPragmas = nub $ concat allPragmas
+mergePragmas allPragmas = nub $ concat allPragmas -- TODO Works, but not elaborated enough.
 
 mergeImportDecls :: [[ImportDecl SrcSpanInfo]] -> [ImportDecl SrcSpanInfo]
 mergeImportDecls decls =
+    -- TODO module modifiers (hiding, qualified) are not merged!
     nubBy (\d1 d2 -> (EQ == ) $ comparing (getModuleName . importModule) d1 d2) (concat decls)
 
 getModuleName :: ModuleName SrcSpanInfo -> String
